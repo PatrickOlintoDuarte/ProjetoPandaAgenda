@@ -127,22 +127,23 @@ async function initGIS() {
   await waitForGIS();
 
   tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    ux_mode: "redirect",
-    redirect_uri: window.location.origin + window.location.pathname,
-    callback: (resp) => {
-      console.log("🔑 GIS callback:", resp);
-      if (resp && resp.access_token) {
-        accessToken = resp.access_token;
-        isGoogleConnected = true;
-        updateGoogleCalendarStatus();
-        buscarVagasData();
-      } else {
-        console.warn("⚠️ GIS não retornou access_token no callback");
-      }
+  client_id: CLIENT_ID,
+  scope: SCOPES,
+  ux_mode: "redirect",
+  redirect_uri: "https://patrickolintoduarte.github.io/ProjetoPandaAgenda",
+  callback: (resp) => {
+    console.log("🔑 GIS callback:", resp);
+    if (resp && resp.access_token) {
+      accessToken = resp.access_token;
+      isGoogleConnected = true;
+      updateGoogleCalendarStatus();
+      buscarVagasData();
+    } else {
+      console.warn("⚠️ GIS não retornou access_token no callback");
     }
-  });
+  }
+});
+
 }
 
 async function handleAuthClick(){
