@@ -1,34 +1,44 @@
-// app.js
 (() => {
   // ========== CONFIG GOOGLE ==========
-  const CLIENT_ID   = "371129341051-8ukpj3l1chk4jccdhanm5mvu3h2ajnm0.apps.googleusercontent.com"; // OAuth Client ID (Web)
-  const API_KEY     = "AIzaSyB0-Hu46SyozXxkj7_ACIIhY2Jv6RfY8VM";                                   // API Key
+  const CLIENT_ID   = "371129341051-8ukpj3l1chk4jccdhanm5mvu3h2ajnm0.apps.googleusercontent.com";
+  const API_KEY     = "AIzaSyB0-Hu46SyozXxkj7_ACIIhY2Jv6RfY8VM";
   const CALENDAR_ID = "f115236e50fdb661333dfef8b424cfac22446bb8624c5f6ce3ddb1d666f3e102@group.calendar.google.com";
 
   const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest";
   const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
-  // ========== ELEMENTOS EXISTENTES ==========
-  const $ = (s) => document.querySelector(s);
+  // ========== ELEMENTOS ==========
+  const $  = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-  const clienteEl = $("#cliente");
-  const telefoneEl = $("#telefone");
-  const emailEl = $("#email");
-  const regiaoEl = $("#regiao");
-  const dataEl = $("#dataAgendamento");
+  const clienteEl   = $("#cliente");
+  const telefoneEl  = $("#telefone");
+  const emailEl     = $("#email");
+  const regiaoEl    = $("#regiao");
+  const dataEl      = $("#dataAgendamento");
   const tipoServicoEl = $("#tipoServico");
-  const tecnicoEl = $("#tecnico");
-  const enderecoEl = $("#endereco");
+  const tecnicoEl   = $("#tecnico");
+  const enderecoEl  = $("#endereco");
 
-  const timeSlotsWrap = $("#timeSlots");
-  const btnAgendar = $("#btnAgendar");
-  const alertContainer = $("#alertContainer");
-  const limitsGrid = $("#limitsGrid");
+  const timeSlotsWrap   = $("#timeSlots");
+  const btnAgendar      = $("#btnAgendar");
+  const alertContainer  = $("#alertContainer");
+  const limitsGrid      = $("#limitsGrid");
   const calendarContainer = document.querySelector(".calendar-container");
   const TIMEZONE = "America/Sao_Paulo";
 
-  // Botão de login (se não existir, criaremos)
+  // ========== CORES POR TÉCNICO ==========
+  // colorId válidos (1..11) — mapeie como preferir
+  const TECNICO_CORES = {
+    "carlos": { nome: "Carlos Silva",     cor: "11" }, // vermelho
+    "ana":    { nome: "Ana Santos",       cor: "2"  }, // verde
+    "pedro":  { nome: "Pedro Oliveira",   cor: "7"  }, // azul
+    "maria":  { nome: "Maria Costa",      cor: "10" }, // rosa
+    "joao":   { nome: "João Pereira",     cor: "5"  }, // amarelo
+    "lucia":  { nome: "Lúcia Fernandes",  cor: "6"  }  // roxo
+  };
+
+  // ========== BOTÃO LOGIN ==========
   let btnLogin = $("#btnLoginGoogle");
   if (!btnLogin) {
     btnLogin = document.createElement("button");
@@ -38,9 +48,11 @@
     btnAgendar.insertAdjacentElement("beforebegin", btnLogin);
   }
 
-  // Barra de atualizar iframe
-  const refreshBar = document.createElement("div");
-  refreshBar.style.margin = "10px 0 0";
+  // ========== BARRA DE AÇÕES (Atualizar iframe / Atualizar eventos / Vincular técnico) ==========
+  const actionsBar = document.createElement("div");
+  actionsBar.style.margin = "10px 0 0";
+
+  // Atualizar iframe
   const refreshBtn = document.createElement("button");
   refreshBtn.textContent = "🔄 Atualizar Agenda do Google";
   refreshBtn.className = "btn";
@@ -52,8 +64,23 @@
       setTimeout(() => (iframe.src = src), 50);
     }
   });
-  refreshBar.appendChild(refreshBtn);
-  calendarContainer.prepend(refreshBar);
+  actionsBar.appendChild(refreshBtn);
+
+  // Atualizar eventos existentes (título + cor pelo técnico na descrição)
+  const btnAtualizarEventos = document.createElement("button");
+  btnAtualizarEventos.textContent = "🎨 Atualizar eventos existentes";
+  btnAtualizarEventos.className = "btn";
+  btnAtualizarEventos.style.marginLeft = "10px";
+  actionsBar.appendChild(btnAtualizarEventos);
+
+  // Vincular técnico a evento existente (modal com filtro por dia)
+  const btnVincular = document.createElement("button");
+  btnVincular.textContent = "📌 Vincular técnico a evento existente";
+  btnVincular.className = "btn";
+  btnVincular.style.marginLeft = "10px";
+  actionsBar.appendChild(btnVincular);
+
+  calendarContainer.prepend(actionsBar);
 
   // ========== ALERTAS ==========
   function showAlert(msg, type = "info") {
@@ -78,13 +105,13 @@
   };
   function labelRegiao(v) {
     switch (v) {
-      case "santo-andre": return "Santo André";
-      case "diadema": return "Diadema";
+      case "santo-andre":  return "Santo André";
+      case "diadema":      return "Diadema";
       case "sao-bernardo": return "São Bernardo do Campo";
-      case "sao-caetano": return "São Caetano do Sul";
+      case "sao-caetano":  return "São Caetano do Sul";
       case "ribeirao-pires": return "Ribeirão Pires";
-      case "maua": return "Mauá";
-      default: return v;
+      case "maua":         return "Mauá";
+      default:             return v;
     }
   }
 
@@ -240,7 +267,6 @@
   let gisInited = false;
   let accessToken = null;
 
-  // Carrega gapi client
   window.addEventListener("load", () => {
     if (window.gapi) {
       window.gapi.load("client", async () => {
@@ -258,7 +284,7 @@
       tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        prompt: "", // manter vazio aqui; vamos forçar consentimento no botão
+        prompt: "", // solicitaremos no clique
         callback: (resp) => {
           if (resp && resp.access_token) {
             accessToken = resp.access_token;
@@ -279,14 +305,13 @@
     }
   }
 
-  // >>> ALTERAÇÃO: força consentimento no clique do login
   btnLogin.addEventListener("click", (e) => {
     e.preventDefault();
     if (!tokenClient) {
       showAlert("Google Identity Services não inicializado.", "error");
       return;
     }
-    tokenClient.requestAccessToken({ prompt: "consent" }); // << força consent
+    tokenClient.requestAccessToken({ prompt: "consent" });
   });
 
   async function ensureSignedIn() {
@@ -305,10 +330,10 @@
     });
   }
 
-  // ========== CRIAÇÃO DO EVENTO ==========
+  // ========== CRIAR EVENTO ==========
   async function createCalendarEvent(eventBody) {
-    window.gapi.client.setToken({ access_token: accessToken });
-    const res = await window.gapi.client.calendar.events.insert({
+    gapi.client.setToken({ access_token: accessToken });
+    const res = await gapi.client.calendar.events.insert({
       calendarId: CALENDAR_ID,
       resource: eventBody,
       sendUpdates: "all",
@@ -316,7 +341,7 @@
     return res.result;
   }
 
-  function makeEventBody({ titulo, descricao, endereco, inicio, fim }) {
+  function makeEventBody({ titulo, descricao, endereco, inicio, fim, cor }) {
     return {
       summary: titulo,
       description: descricao,
@@ -324,6 +349,7 @@
       start: { dateTime: inicio.toISOString(), timeZone: TIMEZONE },
       end:   { dateTime: fim.toISOString(),    timeZone: TIMEZONE },
       reminders: { useDefault: true },
+      colorId: cor
     };
   }
 
@@ -331,7 +357,6 @@
   btnAgendar.addEventListener("click", async (e) => {
     e.preventDefault();
 
-    // >>> ALTERAÇÃO: impede agendar antes de gapi/GIS carregarem
     if (!gapiInited || !gisInited) {
       showAlert("Serviços do Google ainda carregando. Tente novamente em 1–2s.", "error");
       return;
@@ -340,23 +365,26 @@
     const { ok, horario } = validar();
     if (!ok) return;
 
-    // Gera dados
     const inicio = parseHourToDate(dataEl.value, horario);
     const fim = new Date(inicio.getTime() + 60 * 60 * 1000);
     const regionLabel = labelRegiao(regiaoEl.value);
-    const titulo = `[${regionLabel}] ${tipoServicoEl.options[tipoServicoEl.selectedIndex].text} - ${clienteEl.value}`;
+
+    const tecnicoVal  = tecnicoEl.value;
+    const tecnicoNome = TECNICO_CORES[tecnicoVal]?.nome || tecnicoEl.options[tecnicoEl.selectedIndex].text;
+    const tecnicoCor  = TECNICO_CORES[tecnicoVal]?.cor || "1";
+
+    const titulo = `[${regionLabel}] ${tipoServicoEl.options[tipoServicoEl.selectedIndex].text} - ${clienteEl.value} • ${tecnicoNome}`;
     const descricao =
       `Cliente: ${clienteEl.value}\n` +
       `Telefone: ${telefoneEl.value}\n` +
       `E-mail: ${emailEl.value}\n` +
       `Região: ${regionLabel}\n` +
       `Serviço: ${tipoServicoEl.options[tipoServicoEl.selectedIndex].text}\n` +
-      `Técnico: ${tecnicoEl.options[tecnicoEl.selectedIndex].text}\n` +
+      `Técnico: ${tecnicoNome}\n` +
       `Endereço: ${enderecoEl.value}\n` +
       `Data/Hora: ${dataEl.value} ${horario}\n` +
       `Gerado pelo Sistema de Agendamento Panda Fibra`;
 
-    // 1) Garante login/autorização
     const okSignIn = await ensureSignedIn();
     if (!okSignIn) {
       showAlert("É necessário conectar ao Google para criar o evento no calendário.", "error");
@@ -364,11 +392,9 @@
     }
 
     try {
-      // 2) Cria evento no Google Calendar
-      const eventBody = makeEventBody({ titulo, descricao, endereco: enderecoEl.value, inicio, fim });
+      const eventBody = makeEventBody({ titulo, descricao, endereco: enderecoEl.value, inicio, fim, cor: tecnicoCor });
       const created = await createCalendarEvent(eventBody);
 
-      // 3) Salva localmente (para a UI do site)
       const lista = loadAgendamentos();
       lista.push({
         id: created.id,
@@ -388,11 +414,9 @@
       });
       saveAgendamentos(lista);
 
-      // 4) Atualiza UI
       renderLimites();
       renderDailyList();
 
-      // 5) Recarrega o iframe para refletir o novo evento
       const iframe = calendarContainer.querySelector("iframe");
       if (iframe) {
         const src = iframe.src;
@@ -408,6 +432,224 @@
       showAlert(`Falha ao criar evento no Google Calendar: ${reason}`, "error");
     }
   });
+
+  // ========== ATUALIZAR EVENTOS EXISTENTES (Pelos dados já gravados na descrição) ==========
+  btnAtualizarEventos.addEventListener("click", async () => {
+    if (!await ensureSignedIn()) {
+      showAlert("Conecte-se ao Google primeiro!", "error");
+      return;
+    }
+    await updateEventosTecnicos();
+  });
+
+  async function updateEventosTecnicos() {
+    try {
+      gapi.client.setToken({ access_token: accessToken });
+
+      const res = await gapi.client.calendar.events.list({
+        calendarId: CALENDAR_ID,
+        timeMin: new Date().toISOString(),
+        timeMax: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        singleEvents: true,
+        orderBy: "startTime"
+      });
+
+      const eventos = res.result.items || [];
+      let atualizados = 0;
+
+      for (const ev of eventos) {
+        if (!ev.description) continue;
+
+        const match = ev.description.match(/Técnico:\s*(.+)/i);
+        if (!match) continue;
+
+        const tecnicoNome = match[1].trim();
+        const tecnicoKey = Object.keys(TECNICO_CORES).find(k => TECNICO_CORES[k].nome === tecnicoNome);
+        if (!tecnicoKey) continue;
+
+        const cor = TECNICO_CORES[tecnicoKey].cor;
+        let novoTitulo = ev.summary;
+
+        if (!novoTitulo.includes(tecnicoNome)) {
+          novoTitulo = `${novoTitulo} • ${tecnicoNome}`;
+        }
+
+        if (ev.summary !== novoTitulo || ev.colorId !== cor) {
+          ev.summary = novoTitulo;
+          ev.colorId = cor;
+
+          await gapi.client.calendar.events.update({
+            calendarId: CALENDAR_ID,
+            eventId: ev.id,
+            resource: ev
+          });
+          atualizados++;
+        }
+      }
+
+      showAlert(`✅ ${atualizados} eventos atualizados com nome do técnico e cor!`, "success");
+    } catch (err) {
+      console.error("Erro ao atualizar eventos:", err);
+      showAlert("Falha ao atualizar eventos. Veja o console.", "error");
+    }
+  }
+
+  // ========== MODAL: VINCULAR TÉCNICO A EVENTO (Filtro por dia + UI visual) ==========
+  const modalVincular = document.createElement("div");
+  modalVincular.className = "appointment-modal";
+  modalVincular.style.display = "none";
+  modalVincular.innerHTML = `
+    <div class="modal-content" style="max-width:700px;">
+      <div class="modal-header">
+        <h3>📌 Vincular Técnico a Evento</h3>
+        <button class="modal-close" id="modalCloseVincular">&times;</button>
+      </div>
+      <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <label for="dataFiltro"><strong>Filtrar por dia:</strong></label>
+        <input type="date" id="dataFiltro"/>
+        <button class="btn" id="btnBuscarEventos">🔎 Buscar</button>
+      </div>
+      <div id="modalEventos"></div>
+    </div>
+  `;
+  document.body.appendChild(modalVincular);
+
+  btnVincular.addEventListener("click", async () => {
+    modalVincular.style.display = "block";
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "modalCloseVincular") {
+      modalVincular.style.display = "none";
+    }
+  });
+
+  document.addEventListener("click", async (e) => {
+    if (e.target && e.target.id === "btnBuscarEventos") {
+      const data = $("#dataFiltro").value;
+      if (!data) { alert("Selecione uma data."); return; }
+      if (!await ensureSignedIn()) {
+        showAlert("Conecte-se ao Google primeiro!", "error");
+        return;
+      }
+      await listarEventosPorDia(data);
+    }
+  });
+
+  async function listarEventosPorDia(dataISO) {
+    gapi.client.setToken({ access_token: accessToken });
+
+    const inicio = new Date(`${dataISO}T00:00:00`);
+    const fim    = new Date(`${dataISO}T23:59:59`);
+
+    const res = await gapi.client.calendar.events.list({
+      calendarId: CALENDAR_ID,
+      timeMin: inicio.toISOString(),
+      timeMax: fim.toISOString(),
+      singleEvents: true,
+      orderBy: "startTime"
+    });
+
+    const eventos = res.result.items || [];
+    const container = $("#modalEventos");
+    container.innerHTML = "";
+
+    if (!eventos.length) {
+      container.innerHTML = "<p>Nenhum evento encontrado para esta data.</p>";
+      return;
+    }
+
+    eventos.forEach(ev => {
+      const start = ev.start.dateTime || `${ev.start.date}T00:00:00`;
+      const startTime = new Date(start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const tecnicoAtual = (ev.description?.match(/Técnico:\s*(.+)/i)?.[1]) || "Nenhum";
+
+      const tecnicoSelect = document.createElement("select");
+      tecnicoSelect.innerHTML = `
+        <option value="">Selecione técnico</option>
+        ${Object.entries(TECNICO_CORES).map(([key, t]) =>
+          `<option value="${key}" ${tecnicoAtual === t.nome ? "selected" : ""}>${t.nome}</option>`
+        ).join("")}
+      `;
+
+      const btnSalvar = document.createElement("button");
+      btnSalvar.textContent = "Salvar";
+      btnSalvar.className = "btn";
+      btnSalvar.style.marginLeft = "8px";
+
+      btnSalvar.addEventListener("click", async () => {
+        const tecnicoKey = tecnicoSelect.value;
+        if (!tecnicoKey) { alert("Selecione um técnico."); return; }
+        await vincularTecnico(ev.id, tecnicoKey);
+        // Atualiza visual do card após salvar
+        badge.innerText = `Técnico atual: ${TECNICO_CORES[tecnicoKey].nome}`;
+      });
+
+      const card = document.createElement("div");
+      card.style.margin = "10px 0";
+      card.style.padding = "12px";
+      card.style.border = "1px solid #e5e7eb";
+      card.style.borderRadius = "12px";
+      card.style.background = "#f9fafb";
+
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.justifyContent = "space-between";
+      header.style.alignItems = "center";
+      header.innerHTML = `<div><strong>${startTime}</strong> — ${ev.summary}</div>`;
+
+      const badge = document.createElement("div");
+      badge.style.fontSize = "0.9em";
+      badge.style.color = "#374151";
+      badge.innerText = `Técnico atual: ${tecnicoAtual}`;
+
+      const controls = document.createElement("div");
+      controls.style.marginTop = "8px";
+      controls.appendChild(tecnicoSelect);
+      controls.appendChild(btnSalvar);
+
+      card.appendChild(header);
+      card.appendChild(badge);
+      card.appendChild(controls);
+
+      container.appendChild(card);
+    });
+  }
+
+  async function vincularTecnico(eventId, tecnicoKey) {
+    const tecnico = TECNICO_CORES[tecnicoKey];
+    if (!tecnico) return;
+
+    const ev = await gapi.client.calendar.events.get({
+      calendarId: CALENDAR_ID,
+      eventId
+    });
+
+    let evento = ev.result;
+
+    // evita duplicar a marca do técnico no título
+    if (!evento.summary.includes(tecnico.nome)) {
+      evento.summary += ` • ${tecnico.nome}`;
+    }
+
+    // normaliza a descrição (remove linha anterior "Técnico: ..." se houver)
+    evento.description = (evento.description || "")
+      .replace(/Técnico:.*/i, "")
+      .trim();
+    if (evento.description) evento.description += "\n";
+    evento.description += `Técnico: ${tecnico.nome}`;
+
+    // cor do evento
+    evento.colorId = tecnico.cor;
+
+    await gapi.client.calendar.events.update({
+      calendarId: CALENDAR_ID,
+      eventId,
+      resource: evento
+    });
+
+    showAlert(`✅ Técnico ${tecnico.nome} vinculado ao evento!`, "success");
+  }
 
   // ===== (Opcional) Diagnóstico rápido no console: _diagCalendar() =====
   window._diagCalendar = async function() {
@@ -446,5 +688,3 @@
     }
   };
 })();
-
-

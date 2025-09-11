@@ -10,7 +10,6 @@ let selectedDate = new Date();
 const vagasPorData = {};        // { 'YYYY-MM-DD': { Cidade: { Serviço: { total, ocupadas } } } }
 
 /* ========= CAPACIDADES ========= */
-/*  ⬇️ Ajustado para os 5 serviços genéricos */
 const CAPACIDADE = {
   "Santo André":     { "Manutenção": 18, "Instalação": 10, "Implementação": 6, "Mudança de Endereço": 8, "Retenção": 7 },
   "Diadema":         { "Manutenção": 12, "Instalação": 6,  "Implementação": 4, "Mudança de Endereço": 6, "Retenção": 5 },
@@ -21,7 +20,6 @@ const CAPACIDADE = {
 };
 
 /* ========= SERVIÇOS / ÍCONES ========= */
-/*  ⬇️ Ícones com os mesmos 5 nomes */
 const servicoIcons = {
   "Manutenção": "🔧",
   "Instalação": "📡",
@@ -31,47 +29,26 @@ const servicoIcons = {
 };
 
 /* ========= PALAVRAS-CHAVE (regex) ========= */
-/*  ⬇️ Classificação por título/descrição usando exatamente as 5 categorias */
 const SERVICE_KEYWORDS = [
   {
     service: "Manutenção",
-    patterns: [
-      /manuten[çc][aã]o/i,          // manutenção / manutencao
-      /preventiva/i,                // preventiva
-      /\bt[eê]cnico\b/i             // técnico
-    ]
+    patterns: [/manuten[çc][aã]o/i, /preventiva/i, /\bt[eê]cnico\b/i]
   },
   {
     service: "Instalação",
-    patterns: [
-      /instala[çc][aã]o/i,          // instalação / instalacao
-      /\binstalar\b/i,
-      /\binstala[rd]\b/i            // instalar/instalad(o/a) (cobrir variações simples)
-    ]
+    patterns: [/instala[çc][aã]o/i, /\binstalar\b/i, /\binstala[rd]\b/i]
   },
   {
     service: "Implementação",
-    patterns: [
-      /implementa[çc][aã]o/i,       // implementação / implementacao
-      /\bimplanta[çc][aã]o\b/i,     // implantação
-      /\bimplementar\b/i
-    ]
+    patterns: [/implementa[çc][aã]o/i, /\bimplanta[çc][aã]o\b/i, /\bimplementar\b/i]
   },
   {
     service: "Mudança de Endereço",
-    patterns: [
-      /mudan[çc]a\s+de\s+endere[çc]o/i, // mudança de endereço
-      /mudan[çc]a.*endere[çc]o/i,       // mudança ... endereço
-      /\btransfer[êe]ncia\s+de\s+end/i  // transferência de end(ereço)
-    ]
+    patterns: [/mudan[çc]a\s+de\s+endere[çc]o/i, /mudan[çc]a.*endere[çc]o/i, /\btransfer[êe]ncia\s+de\s+end/i]
   },
   {
     service: "Retenção",
-    patterns: [
-      /reten[çc][aã]o/i,                // retenção / retencao
-      /cancelamento/i,                  // cancelamento
-      /CANC(?:\s|.)*PONTO\s+ADC/i       // CANC ... PONTO ADC (padrão já usado)
-    ]
+    patterns: [/reten[çc][aã]o/i, /cancelamento/i, /CANC(?:\s|.)*PONTO\s+ADC/i]
   },
 ];
 
@@ -125,25 +102,23 @@ async function waitForGIS(timeoutMs=8000){
 
 async function initGIS() {
   await waitForGIS();
-
   tokenClient = google.accounts.oauth2.initTokenClient({
-  client_id: CLIENT_ID,
-  scope: SCOPES,
-  ux_mode: "redirect",
-  redirect_uri: "https://patrickolintoduarte.github.io/ProjetoPandaAgenda",
-  callback: (resp) => {
-    console.log("🔑 GIS callback:", resp);
-    if (resp && resp.access_token) {
-      accessToken = resp.access_token;
-      isGoogleConnected = true;
-      updateGoogleCalendarStatus();
-      buscarVagasData();
-    } else {
-      console.warn("⚠️ GIS não retornou access_token no callback");
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    ux_mode: "redirect",
+    redirect_uri: "https://patrickolintoduarte.github.io/ProjetoPandaAgenda",
+    callback: (resp) => {
+      console.log("🔑 GIS callback:", resp);
+      if (resp && resp.access_token) {
+        accessToken = resp.access_token;
+        isGoogleConnected = true;
+        updateGoogleCalendarStatus();
+        buscarVagasData();
+      } else {
+        console.warn("⚠️ GIS não retornou access_token no callback");
+      }
     }
-  }
-});
-
+  });
 }
 
 async function handleAuthClick(){
@@ -153,7 +128,7 @@ async function handleAuthClick(){
   }catch(e){ showErrorBanner(e); }
 }
 
-/* ========= CALENDAR via fetch (com timeout) ========= */
+/* ========= CALENDAR via fetch ========= */
 async function listEventsByDate(dateStringSP){
   if(!accessToken) {
     console.warn("⚠️ Sem token, não vou buscar eventos");
@@ -166,7 +141,7 @@ async function listEventsByDate(dateStringSP){
                 `&singleEvents=true&orderBy=startTime&maxResults=2500`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(()=>controller.abort(), 15000); // 15s
+  const timeoutId = setTimeout(()=>controller.abort(), 15000); 
   console.log("🌐 Fetch eventos:", url);
 
   try{
@@ -349,6 +324,47 @@ function atualizarSelecaoDataUI(d, msg=""){
   document.getElementById("dateStatus").textContent = msg || `Exibindo disponibilidade para ${isToday?"hoje":"o dia selecionado"}.`;
 }
 
+/* ========= REAJUSTE DE VAGAS ========= */
+function reajustarVagas() {
+  try {
+    const tipo = prompt(
+      "Digite 'global' para alterar todas as cidades ou o nome da cidade específica:\n\n" +
+      Object.keys(CAPACIDADE).join(", ")
+    );
+
+    if (!tipo) return;
+
+    const servicos = ["Manutenção", "Instalação", "Implementação", "Mudança de Endereço", "Retenção"];
+
+    if (tipo.toLowerCase() === "global") {
+      for (const cidade of Object.keys(CAPACIDADE)) {
+        for (const serv of servicos) {
+          const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${cidade} (atual: ${CAPACIDADE[cidade][serv]})`), 10);
+          if (!isNaN(novo) && novo >= 0) {
+            CAPACIDADE[cidade][serv] = novo;
+          }
+        }
+      }
+      alert("✅ Vagas reajustadas globalmente.");
+    } else if (CAPACIDADE[tipo]) {
+      for (const serv of servicos) {
+        const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${tipo} (atual: ${CAPACIDADE[tipo][serv]})`), 10);
+        if (!isNaN(novo) && novo >= 0) {
+          CAPACIDADE[tipo][serv] = novo;
+        }
+      }
+      alert(`✅ Vagas reajustadas para ${tipo}.`);
+    } else {
+      alert("❌ Cidade inválida.");
+    }
+
+    buscarVagasData();
+
+  } catch (e) {
+    showErrorBanner(e);
+  }
+}
+
 /* ========= FLUXOS ========= */
 async function buscarVagasData(){
   try{
@@ -383,7 +399,6 @@ function definirHoje(){ selectedDate=new Date(); setDatePickerTo(selectedDate); 
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", async ()=>{
   try{
-    // Se a página voltou do redirect com #access_token=..., captura
     const params = new URLSearchParams(window.location.hash.slice(1));
     const t = params.get("access_token");
     if (t) {
@@ -406,7 +421,10 @@ document.addEventListener("DOMContentLoaded", async ()=>{
       await buscarVagasData();
       btn.disabled = false; btn.textContent = "🔄 Atualizar";
     });
-
     document.getElementById("connectGoogleBtn").addEventListener("click", handleAuthClick);
+
+    // 👉 Novo botão
+    document.getElementById("reajustarBtn").addEventListener("click", reajustarVagas);
+
   }catch(e){ showErrorBanner(e); }
 });
