@@ -5,9 +5,9 @@ const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
 
 /* ========= ESTADO ========= */
 let isGoogleConnected = false;
-let accessToken = null;         // token do GIS
+let accessToken = null;
 let selectedDate = new Date();
-const vagasPorData = {};        // { 'YYYY-MM-DD': { Cidade: { Serviço: { total, ocupadas } } } }
+const vagasPorData = {};
 
 /* ========= CAPACIDADES ========= */
 const CAPACIDADE = {
@@ -30,26 +30,11 @@ const servicoIcons = {
 
 /* ========= PALAVRAS-CHAVE (regex) ========= */
 const SERVICE_KEYWORDS = [
-  {
-    service: "Manutenção",
-    patterns: [/manuten[çc][aã]o/i, /preventiva/i, /\bt[eê]cnico\b/i]
-  },
-  {
-    service: "Instalação",
-    patterns: [/instala[çc][aã]o/i, /\binstalar\b/i, /\binstala[rd]\b/i]
-  },
-  {
-    service: "Implementação",
-    patterns: [/implementa[çc][aã]o/i, /\bimplanta[çc][aã]o\b/i, /\bimplementar\b/i]
-  },
-  {
-    service: "Mudança de Endereço",
-    patterns: [/mudan[çc]a\s+de\s+endere[çc]o/i, /mudan[çc]a.*endere[çc]o/i, /\btransfer[êe]ncia\s+de\s+end/i]
-  },
-  {
-    service: "Retenção",
-    patterns: [/reten[çc][aã]o/i, /cancelamento/i, /CANC(?:\s|.)*PONTO\s+ADC/i]
-  },
+  { service: "Manutenção", patterns: [/manuten[çc][aã]o/i, /preventiva/i, /\bt[eê]cnico\b/i] },
+  { service: "Instalação", patterns: [/instala[çc][aã]o/i, /\binstalar\b/i, /\binstala[rd]\b/i] },
+  { service: "Implementação", patterns: [/implementa[çc][aã]o/i, /\bimplanta[çc][aã]o\b/i, /\bimplementar\b/i] },
+  { service: "Mudança de Endereço", patterns: [/mudan[çc]a\s+de\s+endere[çc]o/i, /mudan[çc]a.*endere[çc]o/i, /\btransfer[êe]ncia\s+de\s+end/i] },
+  { service: "Retenção", patterns: [/reten[çc][aã]o/i, /cancelamento/i, /CANC(?:\s|.)*PONTO\s+ADC/i] },
 ];
 
 /* ========= ERROS VISUAIS ========= */
@@ -141,8 +126,7 @@ async function listEventsByDate(dateStringSP){
                 `&singleEvents=true&orderBy=startTime&maxResults=2500`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(()=>controller.abort(), 15000); 
-  console.log("🌐 Fetch eventos:", url);
+  const timeoutId = setTimeout(()=>controller.abort(), 15000);
 
   try{
     const r = await fetch(url, {
@@ -153,7 +137,6 @@ async function listEventsByDate(dateStringSP){
 
     if(!r.ok){
       const txt = await r.text().catch(()=>r.statusText);
-      console.error("❌ Calendar API ERRO:", r.status, txt);
       if (r.status === 401) {
         isGoogleConnected = false;
         updateGoogleCalendarStatus();
@@ -166,13 +149,10 @@ async function listEventsByDate(dateStringSP){
     }
 
     const data = await r.json();
-    console.log("📅 Eventos recebidos:", data.items?.length || 0);
     return data.items || [];
   }catch(err){
     clearTimeout(timeoutId);
-    if (err.name === "AbortError") {
-      throw new Error("Tempo esgotado ao buscar eventos (timeout). Verifique sua conexão e tente novamente.");
-    }
+    if (err.name === "AbortError") throw new Error("Tempo esgotado ao buscar eventos (timeout). Verifique sua conexão e tente novamente.");
     throw err;
   }
 }
@@ -187,14 +167,10 @@ function extractCityFromDescription(desc=""){
     return null;
   }catch(e){ console.warn("extractCityFromDescription falhou:", e); return null; }
 }
-
 function detectServiceFromText(text=""){
-  for (const e of SERVICE_KEYWORDS){
-    if (e.patterns.some(p => p.test(text))) return e.service;
-  }
+  for (const e of SERVICE_KEYWORDS){ if (e.patterns.some(p => p.test(text))) return e.service; }
   return null;
 }
-
 function parseEventToSlot(ev){
   const title = `${ev?.summary||""} ${ev?.description||""}`.trim();
   const desc  = ev?.description || "";
@@ -243,7 +219,6 @@ function calcularEstatisticas(dateString){
   const pOcup = total ? Math.round((ocupadas/total)*100) : 0;
   return { total, ocupadas, disponiveis, taxa, pDisp, pOcup };
 }
-
 function animateNumber(el, finalValue, suffix="", duration=800){
   const startValue = Number(el.textContent.replace(/\D/g,"")) || 0;
   const t0 = performance.now();
@@ -254,7 +229,6 @@ function animateNumber(el, finalValue, suffix="", duration=800){
   }
   requestAnimationFrame(step);
 }
-
 function atualizarEstatisticasUI(dateString){
   const { total, ocupadas, disponiveis, taxa, pDisp, pOcup } = calcularEstatisticas(dateString);
   animateNumber(document.getElementById("totalVagas"), total);
@@ -268,7 +242,6 @@ function atualizarEstatisticasUI(dateString){
   else if (taxa <= 80){ st.className="stat-change"; st.innerHTML="<span>⚖️</span><span>Ocupação moderada</span>"; }
   else { st.className="stat-change negative"; st.innerHTML="<span>🔥</span><span>Alta demanda</span>"; }
 }
-
 function criarCardsCidadesUI(dateString){
   const cont = document.getElementById("citiesGrid");
   cont.innerHTML = "";
@@ -317,7 +290,6 @@ function criarCardsCidadesUI(dateString){
     cont.appendChild(card);
   });
 }
-
 function atualizarSelecaoDataUI(d, msg=""){
   const isToday = toISODateSP(d)===toISODateSP(new Date());
   document.getElementById("selectedDateText").textContent = `📍 Data selecionada: ${isToday?"Hoje":formatPtSP(d)}`;
@@ -331,7 +303,6 @@ function reajustarVagas() {
       "Digite 'global' para alterar todas as cidades ou o nome da cidade específica:\n\n" +
       Object.keys(CAPACIDADE).join(", ")
     );
-
     if (!tipo) return;
 
     const servicos = ["Manutenção", "Instalação", "Implementação", "Mudança de Endereço", "Retenção"];
@@ -340,18 +311,14 @@ function reajustarVagas() {
       for (const cidade of Object.keys(CAPACIDADE)) {
         for (const serv of servicos) {
           const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${cidade} (atual: ${CAPACIDADE[cidade][serv]})`), 10);
-          if (!isNaN(novo) && novo >= 0) {
-            CAPACIDADE[cidade][serv] = novo;
-          }
+          if (!isNaN(novo) && novo >= 0) CAPACIDADE[cidade][serv] = novo;
         }
       }
       alert("✅ Vagas reajustadas globalmente.");
     } else if (CAPACIDADE[tipo]) {
       for (const serv of servicos) {
         const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${tipo} (atual: ${CAPACIDADE[tipo][serv]})`), 10);
-        if (!isNaN(novo) && novo >= 0) {
-          CAPACIDADE[tipo][serv] = novo;
-        }
+        if (!isNaN(novo) && novo >= 0) CAPACIDADE[tipo][serv] = novo;
       }
       alert(`✅ Vagas reajustadas para ${tipo}.`);
     } else {
@@ -359,10 +326,7 @@ function reajustarVagas() {
     }
 
     buscarVagasData();
-
-  } catch (e) {
-    showErrorBanner(e);
-  }
+  } catch (e) { showErrorBanner(e); }
 }
 
 /* ========= FLUXOS ========= */
@@ -384,7 +348,6 @@ async function buscarVagasData(){
     atualizarEstatisticasUI(ds);
     criarCardsCidadesUI(ds);
   }catch(e){
-    console.error("⚠️ Erro em buscarVagasData:", e);
     atualizarSelecaoDataUI(selectedDate, String(e.message || e));
     showErrorBanner(e);
     const ds = toISODateSP(selectedDate);
@@ -393,7 +356,6 @@ async function buscarVagasData(){
     criarCardsCidadesUI(ds);
   }
 }
-
 function definirHoje(){ selectedDate=new Date(); setDatePickerTo(selectedDate); buscarVagasData(); }
 
 /* ========= INIT ========= */
@@ -402,7 +364,6 @@ document.addEventListener("DOMContentLoaded", async ()=>{
     const params = new URLSearchParams(window.location.hash.slice(1));
     const t = params.get("access_token");
     if (t) {
-      console.log("🔑 Token via hash detectado.");
       accessToken = t;
       isGoogleConnected = true;
       updateGoogleCalendarStatus();
@@ -423,8 +384,6 @@ document.addEventListener("DOMContentLoaded", async ()=>{
     });
     document.getElementById("connectGoogleBtn").addEventListener("click", handleAuthClick);
 
-    // 👉 Novo botão
     document.getElementById("reajustarBtn").addEventListener("click", reajustarVagas);
-
   }catch(e){ showErrorBanner(e); }
 });

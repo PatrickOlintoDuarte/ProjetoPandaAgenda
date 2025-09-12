@@ -50,7 +50,7 @@
 
   // ========== BARRA DE AÇÕES (Atualizar iframe / Atualizar eventos / Vincular técnico) ==========
   const actionsBar = document.createElement("div");
-  actionsBar.style.margin = "10px 0 0";
+  actionsBar.classList.add("actions-bar"); // <<<<<< alterado aqui
 
   // Atualizar iframe
   const refreshBtn = document.createElement("button");
@@ -70,17 +70,18 @@
   const btnAtualizarEventos = document.createElement("button");
   btnAtualizarEventos.textContent = "🎨 Atualizar eventos existentes";
   btnAtualizarEventos.className = "btn";
-  btnAtualizarEventos.style.marginLeft = "10px";
+  // btnAtualizarEventos.style.marginLeft = "10px";  <<<<<< REMOVIDO
   actionsBar.appendChild(btnAtualizarEventos);
 
   // Vincular técnico a evento existente (modal com filtro por dia)
   const btnVincular = document.createElement("button");
   btnVincular.textContent = "📌 Vincular técnico a evento existente";
   btnVincular.className = "btn";
-  btnVincular.style.marginLeft = "10px";
+  // btnVincular.style.marginLeft = "10px";          <<<<<< REMOVIDO
   actionsBar.appendChild(btnVincular);
 
   calendarContainer.prepend(actionsBar);
+
 
   // ========== ALERTAS ==========
   function showAlert(msg, type = "info") {

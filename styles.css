@@ -2,7 +2,7 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #b7d4fa 0%, #3789f5 100%);
   min-height: 100vh;
   padding: 20px;
 }
@@ -18,7 +18,7 @@ body {
 }
 
 .header {
-  background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
+  background: linear-gradient(135deg, #1b85fd, #0077ff);
   color: white;
   padding: 2rem;
   text-align: center;
@@ -50,6 +50,27 @@ body {
   height: 500px;
 }
 
+.topnav {
+  background: linear-gradient(135deg, #0066ff, #000f0e);
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 20%;
+  position: relative;
+  overflow: hidden;
+  margin: 1%;
+}
+
+.topnav a{
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .main-content {
   padding: 2rem;
   display: grid;
@@ -77,7 +98,7 @@ body {
 }
 
 .calendar-header {
-  background: linear-gradient(135deg, #4ecdc4, #44a08d);
+  background: linear-gradient(135deg, #006eff, #cffff5);
   color: white;
   padding: 1rem;
   display: flex;
@@ -172,7 +193,7 @@ body {
 }
 
 .btn {
-  background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
+  background: linear-gradient(135deg, #0066ff, #000f0e);
   color: white;
   border: none;
   padding: 14px 28px;
@@ -187,6 +208,10 @@ body {
 }
 .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); }
 .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+
+#btnLoginGoogle{
+  margin-bottom: 10px;
+}
 
 .time-slots {
   display: grid;
@@ -249,6 +274,35 @@ body {
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; }
 .modal-close:hover { color: #333; }
+
+/* Barra de ações acima do calendário */
+.actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;                 /* espaçamento uniforme entre botões */
+  margin: 10px 0 12px;       /* separação dos outros elementos */
+}
+
+/* Botões da barra de ações mais visíveis */
+.actions-bar .btn {
+  width: auto;               /* não ocupar 100% */
+  padding: 12px 18px;        /* mais área clicável */
+  font-weight: 700;          /* texto mais encorpado */
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.12)); /* destaca no fundo branco */
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+
+.actions-bar .btn:hover {
+  transform: translateY(-1px);
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.18));
+}
+
+/* Em telas menores, reduza o espaçamento */
+@media (max-width: 768px) {
+  .actions-bar { gap: 10px; }
+}
+
 
 @media (max-width: 1200px) {
   .main-content { grid-template-columns: 1fr; height: auto; }
