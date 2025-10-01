@@ -2,140 +2,56 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Agenda Panda Fibra - Agendamento de Instalações</title>
-  <link rel="stylesheet" href="./styles.css"/>
+  <title>Calendário Personalizado (Dark)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <img src="logo67c05c5642661.png" alt="Logo Panda Fibra" style="width: 80px; height: auto; margin-right: 15px;">
-      <p>Sistema de Agendamento de Instalações</p>
-    </div>
 
-    <nav class="topnav" style="margin-bottom:10px;">
-        <a href="Dashboard/dash.html">📈 Abrir Dashboard</a>
-    </nav>
-
-
-    <div class="main-content">
-      <!-- LADO ESQUERDO: Formulário -->
-      <div class="form-section">
-        <h3>📋 Novo Agendamento</h3>
-
-        <div class="form-group">
-          <label for="cliente">Nome do Cliente:</label>
-          <input type="text" id="cliente" placeholder="Digite o nome completo">
-        </div>
-
-        <div class="form-group">
-          <label for="telefone">Telefone:</label>
-          <input type="tel" id="telefone" placeholder="(11) 99999-9999">
-        </div>
-
-        <div class="form-group">
-          <label for="email">E-mail:</label>
-          <input type="email" id="email" placeholder="cliente@email.com">
-        </div>
-
-        <div class="form-group">
-          <label for="regiao">Região:</label>
-          <select id="regiao">
-            <option value="">Selecione a região</option>
-            <option value="santo-andre">Santo André</option>
-            <option value="diadema">Diadema</option>
-            <option value="sao-bernardo">São Bernardo do Campo</option>
-            <option value="sao-caetano">São Caetano do Sul</option>
-            <option value="ribeirao-pires">Ribeirão Pires</option>
-            <option value="maua">Mauá</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-            <label for="dataAgendamento">Data do Agendamento:</label>
-            <input type="date" id="dataAgendamento">
-        </div>
-
-        <div class="form-group">
-          <label for="tipoServico">Tipo de Serviço:</label>
-          <select id="tipoServico">
-            <option value="">Selecione o tipo de serviço</option>
-            <option value="manutencao">Manutenção</option>
-            <option value="instalacao-adiz">Instalação ADIZ</option>
-            <option value="implementacao-arezzo">Implementação AREZZO</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="tecnico">Técnico Responsável:</label>
-          <select id="tecnico">
-            <option value="">Selecione o técnico</option>
-            <option value="carlos">🔴 Carlos Silva</option>
-            <option value="ana">🟢 Ana Santos</option>
-            <option value="pedro">🔵 Pedro Oliveira</option>
-            <option value="maria">🌿 Maria Costa</option>
-            <option value="joao">🟡 João Pereira</option>
-            <option value="lucia">🟣 Lúcia Fernandes</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="endereco">Endereço Completo:</label>
-          <input type="text" id="endereco" placeholder="Rua, número, bairro">
-        </div>
-
-        <div id="timeSlots" class="time-slots" style="display: none;">
-          <div class="time-slot">08:00</div>
-          <div class="time-slot">09:00</div>
-          <div class="time-slot">10:00</div>
-          <div class="time-slot">11:00</div>
-          <div class="time-slot">13:00</div>
-          <div class="time-slot">14:00</div>
-          <div class="time-slot">15:00</div>
-          <div class="time-slot">16:00</div>
-        </div>
-
-        <button class="btn" id="btnAgendar">📅 Agendar Serviço</button>
-
-        <div id="alertContainer"></div>
-
-        <div class="limits-section">
-          <h3>📊 Limites por Região</h3>
-          <div class="limits-grid" id="limitsGrid"></div>
-        </div>
-      </div>
-
-      <!-- LADO DIREITO: Google Calendar -->
-      <div class="calendar-container">
-        <iframe 
-            src="https://calendar.google.com/calendar/embed?src=f115236e50fdb661333dfef8b424cfac22446bb8624c5f6ce3ddb1d666f3e102%40group.calendar.google.com&ctz=America%2FSao_Paulo&mode=DAY" 
-            style="border:0" 
-            width="800" 
-            height="600" 
-            frameborder="0" 
-            scrolling="no">
-        </iframe>
-
-      </div>
-
-
-  <!-- Modal custom de detalhes -->
-  <div class="appointment-modal" id="appointmentModal" style="display:none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Detalhes do Agendamento</h3>
-        <button class="modal-close" id="modalCloseBtn">&times;</button>
-      </div>
-      <div id="modalContent"></div>
+  <div class="topbar">
+    <div class="brand">📆 Meu Calendário</div>
+    <div class="auth">
+      <select id="calendarSelect" class="cal-select" title="Escolha o calendário"></select>
+      <button id="authorize_button" class="btn primary">Conectar Google Calendar</button>
+      <button id="signout_button" class="btn" style="display:none;">Desconectar</button>
     </div>
   </div>
-   <!-- Google Identity Services (OAuth) -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<!-- gapi client (Calendar API) -->
-<script src="https://apis.google.com/js/api.js" async defer></script>
 
-<!-- O seu app -->
-<script src="./app.js" defer></script>
+  <div class="calendar-container">
+    <div class="calendar-header">
+      <button class="calendar-nav-btn" id="prevPeriod">‹</button>
+      <div>
+        <div class="calendar-title" id="calendarTitle">Carregando...</div>
+        <div class="view-switcher">
+          <button class="view-btn active" data-view="day">Dia</button>
+          <button class="view-btn" data-view="week">Semana</button>
+          <button class="view-btn" data-view="month">Mês</button>
+        </div>
+      </div>
+      <button class="calendar-nav-btn" id="nextPeriod">›</button>
+    </div>
 
+    <div class="calendar-body" id="calendarBody"></div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal" id="appointmentModal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <strong>Detalhes do compromisso</strong>
+        <button class="modal-close" id="modalCloseBtn">✕</button>
+      </div>
+      <div class="modal-content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- Importante: carrega nosso app antes dos SDKs pra registrar gapiLoaded/gisLoaded -->
+  <script src="./app.js"></script>
+
+  <!-- SDKs do Google -->
+  <script async defer src="https://apis.google.com/js/api.js"
+          onload="gapiLoaded()" onerror="console.error('Falha ao carregar gapi')"></script>
+  <script async defer src="https://accounts.google.com/gsi/client"
+          onload="gisLoaded()" onerror="console.error('Falha ao carregar GIS')"></script>
 </body>
 </html>
