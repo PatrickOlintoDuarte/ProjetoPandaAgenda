@@ -278,6 +278,10 @@ body.dragging-doc{ user-select:none; cursor:grabbing; }
 .day-number{ position:absolute; top:6px; right:8px; font-size:12px; color:var(--muted); }
 
 
+.btnDash{
+  background-color: #eff1f5;
+}
+
 /* ====== MODAL ====== */
 #appointmentModal{
   position:fixed; inset:0; background:rgba(0,0,0,.6);

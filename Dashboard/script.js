@@ -9,8 +9,11 @@ let accessToken = null;
 let selectedDate = new Date();
 const vagasPorData = {};
 
-/* ========= CAPACIDADES ========= */
-const CAPACIDADE = {
+/* ========= CAPACIDADES (BASE) =========
+   - Base representa "Manhã" para cidades com período.
+   - "Tarde" é controlada via CAPACIDADE_OVERRIDES.
+*/
+const CAPACIDADE_BASE = {
   "Santo André":     { "Manutenção": 18, "Instalação": 10, "Implementação": 6, "Mudança de Endereço": 8, "Retenção": 7 },
   "Diadema":         { "Manutenção": 12, "Instalação": 6,  "Implementação": 4, "Mudança de Endereço": 6, "Retenção": 5 },
   "São Bernardo":    { "Manutenção": 20, "Instalação": 12, "Implementação": 6, "Mudança de Endereço": 8, "Retenção": 7 },
@@ -18,6 +21,44 @@ const CAPACIDADE = {
   "Ribeirão Pires":  { "Manutenção": 8,  "Instalação": 4,  "Implementação": 2, "Mudança de Endereço": 3, "Retenção": 3 },
   "Mauá":            { "Manutenção": 14, "Instalação": 7,  "Implementação": 4, "Mudança de Endereço": 5, "Retenção": 5 },
 };
+
+/* ========= OVERRIDES EXPANDIDOS =========
+   Guarda capacidades específicas para chaves expandidas, ex.:
+   - "Santo André - Tarde": { ... }
+   - Se houver override de "Cidade - Manhã", ele é temporário; ao aplicar, espelha na base e o override é limpo.
+*/
+const CAPACIDADE_OVERRIDES = {}; // { [expandedCityName]: {Servico: numero, ...} }
+
+/* ========= CIDADES ATIVAS / OCULTAS ========= */
+const CIDADES_OCULTAS = new Set(["São Bernardo", "São Caetano", "Ribeirão Pires", "Mauá"]);
+const isCityHiddenBase = (cidade) => CIDADES_OCULTAS.has(cidade);
+
+/* ========= EXPANSÃO MANHÃ/TARDE ========= */
+const CIDADES_COM_PERIODOS = new Set(["Santo André", "Diadema"]);
+const SP_TZ = "America/Sao_Paulo";
+
+/* Constrói o mapa de capacidades EXPANDIDO aplicando overrides onde houver */
+function buildCapacidadeExpandida() {
+  const expanded = {};
+  for (const cidade of Object.keys(CAPACIDADE_BASE)) {
+    if (isCityHiddenBase(cidade)) continue;
+
+    const baseCaps = CAPACIDADE_BASE[cidade];
+
+    if (CIDADES_COM_PERIODOS.has(cidade)) {
+      const kManha = `${cidade} - Manhã`;
+      const kTarde = `${cidade} - Tarde`;
+      expanded[kManha] = { ...(CAPACIDADE_OVERRIDES[kManha] || baseCaps) };
+      expanded[kTarde] = { ...(CAPACIDADE_OVERRIDES[kTarde] || baseCaps) };
+    } else {
+      // cidades sem período também podem ter override próprio
+      expanded[cidade] = { ...(CAPACIDADE_OVERRIDES[cidade] || baseCaps) };
+    }
+  }
+  return expanded;
+}
+
+let CAPACIDADE = buildCapacidadeExpandida();
 
 /* ========= SERVIÇOS / ÍCONES ========= */
 const servicoIcons = {
@@ -42,26 +83,33 @@ function showErrorBanner(msg){
   console.error("❌ Erro:", msg);
   const box = document.getElementById("appErrors");
   const pre = document.getElementById("appErrorsText");
-  pre.textContent = String(msg?.stack || msg);
-  box.style.display = "block";
+  if (box && pre) {
+    pre.textContent = String(msg?.stack || msg);
+    box.style.display = "block";
+  }
 }
 window.onerror = (m, s, l, c, e)=>{ showErrorBanner(e?.stack || m); };
 window.addEventListener('unhandledrejection', (ev)=>{ showErrorBanner(ev.reason?.stack || ev.reason); });
 
+/* ========= HELPERS DE DOM ========= */
+const $ = (id) => document.getElementById(id);
+const on = (el, ev, cb) => { if (el) el.addEventListener(ev, cb); };
+
 /* ========= UTILS DATA (SP) ========= */
 function toISODateSP(date){
-  const p = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+  const p = new Intl.DateTimeFormat('en-CA',{timeZone:SP_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
   return `${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;
 }
 function parseLocalDate(v){ const [y,m,d]=v.split('-').map(Number); return new Date(y,m-1,d); }
 function formatPtSP(date){
-  return new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'long',year:'numeric',month:'long',day:'2-digit'}).format(date);
+  return new Intl.DateTimeFormat('pt-BR',{timeZone:SP_TZ,weekday:'long',year:'numeric',month:'long',day:'2-digit'}).format(date);
 }
-function setDatePickerTo(date){ document.getElementById('datePicker').value = toISODateSP(date); }
+function setDatePickerTo(date){ const el=$('datePicker'); if(el) el.value = toISODateSP(date); }
 
 /* ========= STATUS UI ========= */
 function updateGoogleCalendarStatus(){
-  const el = document.getElementById("calendarStatus");
+  const el = $("calendarStatus");
+  if(!el) return;
   if(isGoogleConnected){
     el.className = "calendar-status connected";
     el.innerHTML = `<div class="status-icon">✅</div><div class="status-text"><div class="status-title">Google Calendar Conectado</div><div class="status-description">Usando capacidades + eventos reais</div></div>`;
@@ -93,7 +141,6 @@ async function initGIS() {
     ux_mode: "redirect",
     redirect_uri: "https://patrickolintoduarte.github.io/ProjetoPandaAgenda",
     callback: (resp) => {
-      console.log("🔑 GIS callback:", resp);
       if (resp && resp.access_token) {
         accessToken = resp.access_token;
         isGoogleConnected = true;
@@ -185,8 +232,30 @@ function parseEventToSlot(ev){
   return { cidade, servico };
 }
 
+/* ========= PERÍODO (MANHÃ/TARDE) ========= */
+function getEventStartHourLocal(ev){
+  const iso = ev?.start?.dateTime || (ev?.start?.date ? `${ev.start.date}T09:00:00` : null);
+  if(!iso) return null;
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: SP_TZ }).formatToParts(d);
+  const hourStr = parts.find(p=>p.type==='hour')?.value ?? "00";
+  return parseInt(hourStr, 10);
+}
+function resolveCidadePeriodo(cidadeBase, ev){
+  if (!cidadeBase) return null;
+  if (CIDADES_COM_PERIODOS.has(cidadeBase)) {
+    const h = getEventStartHourLocal(ev);
+    const periodo = (h !== null && h >= 12) ? "Tarde" : "Manhã";
+    return `${cidadeBase} - ${periodo}`;
+  }
+  return cidadeBase;
+}
+
 /* ========= DIA / CAPACIDADES ========= */
 function buildSkeletonWithCapacity(dateString){
+  // sempre reconstrói a visão expandida a partir da base + overrides
+  CAPACIDADE = buildCapacidadeExpandida();
+
   vagasPorData[dateString] = {};
   Object.keys(CAPACIDADE).forEach(cidade=>{
     vagasPorData[dateString][cidade] = {};
@@ -199,8 +268,9 @@ async function preencherComEventos(dateString){
   buildSkeletonWithCapacity(dateString);
   const events = await listEventsByDate(dateString);
   for(const ev of events){
-    const { cidade, servico } = parseEventToSlot(ev);
-    if(!cidade || !servico) continue;
+    const { cidade: cidadeBase, servico } = parseEventToSlot(ev);
+    if(!cidadeBase || !servico) continue;
+    const cidade = resolveCidadePeriodo(cidadeBase, ev);
     const slot = vagasPorData[dateString]?.[cidade]?.[servico];
     if(slot){ slot.ocupadas = Math.min(slot.total, slot.ocupadas + 1); }
   }
@@ -220,6 +290,7 @@ function calcularEstatisticas(dateString){
   return { total, ocupadas, disponiveis, taxa, pDisp, pOcup };
 }
 function animateNumber(el, finalValue, suffix="", duration=800){
+  if(!el) return;
   const startValue = Number(el.textContent.replace(/\D/g,"")) || 0;
   const t0 = performance.now();
   function step(now){
@@ -231,19 +302,22 @@ function animateNumber(el, finalValue, suffix="", duration=800){
 }
 function atualizarEstatisticasUI(dateString){
   const { total, ocupadas, disponiveis, taxa, pDisp, pOcup } = calcularEstatisticas(dateString);
-  animateNumber(document.getElementById("totalVagas"), total);
-  animateNumber(document.getElementById("vagasDisponiveis"), disponiveis);
-  animateNumber(document.getElementById("vagasOcupadas"), ocupadas);
-  animateNumber(document.getElementById("taxaOcupacao"), taxa, "%");
-  document.getElementById("percentualDisponivel").innerHTML = `<span>📈</span><span>${pDisp}% do total</span>`;
-  document.getElementById("percentualOcupado").innerHTML   = `<span>📊</span><span>${pOcup}% do total</span>`;
-  const st = document.getElementById("statusEficiencia");
-  if (taxa <= 50){ st.className="stat-change positive"; st.innerHTML="<span>⚡</span><span>Ótima disponibilidade</span>"; }
-  else if (taxa <= 80){ st.className="stat-change"; st.innerHTML="<span>⚖️</span><span>Ocupação moderada</span>"; }
-  else { st.className="stat-change negative"; st.innerHTML="<span>🔥</span><span>Alta demanda</span>"; }
+  animateNumber($("totalVagas"), total);
+  animateNumber($("vagasDisponiveis"), disponiveis);
+  animateNumber($("vagasOcupadas"), ocupadas);
+  animateNumber($("taxaOcupacao"), taxa, "%");
+  const pd = $("percentualDisponivel"); if (pd) pd.innerHTML = `<span>📈</span><span>${pDisp}% do total</span>`;
+  const po = $("percentualOcupado");   if (po) po.innerHTML = `<span>📊</span><span>${pOcup}% do total</span>`;
+  const st = $("statusEficiencia");
+  if (st){
+    if (taxa <= 50){ st.className="stat-change positive"; st.innerHTML="<span>⚡</span><span>Ótima disponibilidade</span>"; }
+    else if (taxa <= 80){ st.className="stat-change"; st.innerHTML="<span>⚖️</span><span>Ocupação moderada</span>"; }
+    else { st.className="stat-change negative"; st.innerHTML="<span>🔥</span><span>Alta demanda</span>"; }
+  }
 }
 function criarCardsCidadesUI(dateString){
-  const cont = document.getElementById("citiesGrid");
+  const cont = $("citiesGrid");
+  if(!cont) return;
   cont.innerHTML = "";
   const dia = vagasPorData[dateString] || {};
   const cidades = Object.keys(dia);
@@ -292,47 +366,121 @@ function criarCardsCidadesUI(dateString){
 }
 function atualizarSelecaoDataUI(d, msg=""){
   const isToday = toISODateSP(d)===toISODateSP(new Date());
-  document.getElementById("selectedDateText").textContent = `📍 Data selecionada: ${isToday?"Hoje":formatPtSP(d)}`;
-  document.getElementById("dateStatus").textContent = msg || `Exibindo disponibilidade para ${isToday?"hoje":"o dia selecionado"}.`;
+  const dt = $("selectedDateText"); if (dt) dt.textContent = `📍 Data selecionada: ${isToday?"Hoje":formatPtSP(d)}`;
+  const ds = $("dateStatus"); if (ds) ds.textContent = msg || `Exibindo disponibilidade para ${isToday?"hoje":"o dia selecionado"}.`;
 }
 
-/* ========= REAJUSTE DE VAGAS ========= */
-function reajustarVagas() {
-  try {
-    const tipo = prompt(
-      "Digite 'global' para alterar todas as cidades ou o nome da cidade específica:\n\n" +
-      Object.keys(CAPACIDADE).join(", ")
-    );
-    if (!tipo) return;
+/* ========= REAJUSTE DE VAGAS (MODAL + SELECT) ========= */
+function openReajusteModal(){
+  const dlg = $("reajusteDialog");
+  const select = $("reajusteCidadeSelect");
+  const nota = $("reajusteNota");
+  if (!dlg || !select || !nota) {
+    console.warn("⚠️ Modal de reajuste não encontrado no DOM. Verifique o HTML.");
+    return;
+  }
 
+  const capExp = buildCapacidadeExpandida();
+  select.innerHTML = "";
+
+  const optGlobal = document.createElement("option");
+  optGlobal.value = "__GLOBAL__";
+  optGlobal.textContent = "🌐 Global — todas as cidades ativas";
+  select.appendChild(optGlobal);
+
+  Object.keys(capExp).sort().forEach(cidade=>{
+    const opt = document.createElement("option");
+    opt.value = cidade;
+    opt.textContent = cidade;
+    select.appendChild(opt);
+  });
+
+  nota.textContent = "Dica: “Global” ajusta todas as cidades e períodos. Cidades ocultas seguem fora.";
+  if (typeof dlg.showModal === "function") dlg.showModal();
+  else dlg.setAttribute("open",""); // fallback simples
+}
+
+function fecharReajusteModal(){
+  const dlg = $("reajusteDialog");
+  if (!dlg) return;
+  if (dlg.open && typeof dlg.close === "function") dlg.close();
+  else dlg.removeAttribute("open");
+}
+
+function aplicarReajusteSelecionado(){
+  const select = $("reajusteCidadeSelect");
+  if (!select) {
+    console.warn("⚠️ Select do modal não encontrado.");
+    return;
+  }
+  try{
+    const escolha = select.value;
     const servicos = ["Manutenção", "Instalação", "Implementação", "Mudança de Endereço", "Retenção"];
 
-    if (tipo.toLowerCase() === "global") {
-      for (const cidade of Object.keys(CAPACIDADE)) {
+    // Partimos da visão atual (base + overrides)
+    const capExp = buildCapacidadeExpandida();
+
+    if (escolha === "__GLOBAL__") {
+      // Ajusta cidade a cidade
+      for (const cidade of Object.keys(capExp)) {
         for (const serv of servicos) {
-          const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${cidade} (atual: ${CAPACIDADE[cidade][serv]})`), 10);
-          if (!isNaN(novo) && novo >= 0) CAPACIDADE[cidade][serv] = novo;
+          const atual = capExp[cidade][serv];
+          const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${cidade} (atual: ${atual})`), 10);
+          if (!isNaN(novo) && novo >= 0) capExp[cidade][serv] = novo;
         }
       }
+      projectExpandedToStores(capExp); // <-- grava corretamente (base e overrides)
       alert("✅ Vagas reajustadas globalmente.");
-    } else if (CAPACIDADE[tipo]) {
+    } else if (capExp[escolha]) {
       for (const serv of servicos) {
-        const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${tipo} (atual: ${CAPACIDADE[tipo][serv]})`), 10);
-        if (!isNaN(novo) && novo >= 0) CAPACIDADE[tipo][serv] = novo;
+        const atual = capExp[escolha][serv];
+        const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${escolha} (atual: ${atual})`), 10);
+        if (!isNaN(novo) && novo >= 0) capExp[escolha][serv] = novo;
       }
-      alert(`✅ Vagas reajustadas para ${tipo}.`);
+      projectExpandedToStores(capExp, escolha); // <-- grava apenas a escolhida
+      alert(`✅ Vagas reajustadas para ${escolha}.`);
     } else {
       alert("❌ Cidade inválida.");
+      return;
     }
 
+    fecharReajusteModal();
     buscarVagasData();
-  } catch (e) { showErrorBanner(e); }
+  } catch(e){ showErrorBanner(e); }
+}
+
+/* ========= PROJEÇÃO: EXPANDIDO → BASE/OVERRIDES =========
+   - "Cidade - Manhã"  → atualiza CAPACIDADE_BASE[cidade] e remove override de Manhã.
+   - "Cidade - Tarde"  → salva em CAPACIDADE_OVERRIDES["Cidade - Tarde"].
+   - "Cidade" (sem período) → atualiza CAPACIDADE_BASE["Cidade"] e remove override plano.
+*/
+function projectExpandedToStores(capExpanded, onlyKey){
+  const keys = onlyKey ? [onlyKey] : Object.keys(capExpanded);
+
+  for (const key of keys) {
+    const m = key.match(/^(.+)\s-\s(Manhã|Tarde)$/);
+    if (m) {
+      const baseName = m[1];
+      const periodo = m[2];
+      if (periodo === "Manhã") {
+        CAPACIDADE_BASE[baseName] = { ...capExpanded[key] };
+        delete CAPACIDADE_OVERRIDES[`${baseName} - Manhã`]; // manhã espelha base
+      } else {
+        // Tarde fica em override próprio
+        CAPACIDADE_OVERRIDES[`${baseName} - Tarde`] = { ...capExpanded[key] };
+      }
+    } else {
+      // Sem período: vira base direta
+      CAPACIDADE_BASE[key] = { ...capExpanded[key] };
+      delete CAPACIDADE_OVERRIDES[key];
+    }
+  }
 }
 
 /* ========= FLUXOS ========= */
 async function buscarVagasData(){
   try{
-    const v = document.getElementById("datePicker").value || toISODateSP(new Date());
+    const v = $("datePicker")?.value || toISODateSP(new Date());
     selectedDate = parseLocalDate(v);
     const ds = toISODateSP(selectedDate);
 
@@ -374,16 +522,20 @@ document.addEventListener("DOMContentLoaded", async ()=>{
     updateGoogleCalendarStatus();
     await buscarVagasData();
 
-    document.getElementById("buscarVagasBtn").addEventListener("click", buscarVagasData);
-    document.getElementById("hojeBtn").addEventListener("click", definirHoje);
-    document.getElementById("refreshBtn").addEventListener("click", async ()=>{
-      const btn = document.getElementById("refreshBtn");
+    on($("buscarVagasBtn"), "click", buscarVagasData);
+    on($("hojeBtn"), "click", definirHoje);
+    on($("refreshBtn"), "click", async ()=>{
+      const btn = $("refreshBtn");
+      if (!btn) return;
       btn.disabled = true; btn.textContent = "🔄 Atualizando...";
       await buscarVagasData();
       btn.disabled = false; btn.textContent = "🔄 Atualizar";
     });
-    document.getElementById("connectGoogleBtn").addEventListener("click", handleAuthClick);
+    on($("connectGoogleBtn"), "click", handleAuthClick);
 
-    document.getElementById("reajustarBtn").addEventListener("click", reajustarVagas);
+    // Modal (defensivo)
+    on($("reajustarBtn"), "click", openReajusteModal);
+    on($("reajusteCancelar"), "click", fecharReajusteModal);
+    on($("reajusteAplicar"), "click", aplicarReajusteSelecionado);
   }catch(e){ showErrorBanner(e); }
 });

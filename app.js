@@ -11,10 +11,32 @@ const CALENDAR_ID = "primary";
    1:#4285f4  2:#0b8043  3:#9334e6  4:#e67c73  5:#f6c026  6:#f5511d
    7:#039be5  8:#616161  9:#3f51b5 10:#33b679 11:#d50000 */
 const TECNICOS = [
-  { name: "Técnico A", colorId: "10" },
-  { name: "Técnico B", colorId: "9"  },
-  { name: "Técnico C", colorId: "2"  }
+  // 🎯 EQUIPE ADIZ
+  { name: "Adriano", colorId: "10" }, // SÁLVIA (verde claro)
+  { name: "Diego",   colorId: "6"  }, // TANGERINA (laranja)
+  { name: "Hugo",    colorId: "1"  }, // PAVÃO / Azul Cobalto
+  { name: "Kennzy",  colorId: "11" }, // TOMATE (vermelho)
+  { name: "Luan",    colorId: "3"  }, // LAVANDA (roxo)
+  { name: "Saul",    colorId: "5"  }, // Amarelo Canário
+  { name: "Vagner",  colorId: "8"  }, // Preto Grafite (cinza)
+
+  // 🧡 SANTO ANDRÉ
+  { name: "Fernando",    colorId: "6"  }, // Marrom Terra ~ laranja
+  { name: "Bruno",       colorId: "1"  }, // Azul Claro
+  { name: "Geovane",     colorId: "2"  }, // Verde Musgo (MANJERICÃO)
+  { name: "Alex Abbate", colorId: "4"  }, // Rosa Quartzo (FLAMINGO)
+
+  // 💙 DIADEMA
+  { name: "Alex",     colorId: "7"  }, // Ciano
+  { name: "André",    colorId: "8"  }, // Cinza Prata
+  { name: "Ivan",     colorId: "6"  }, // Laranja Coral
+  { name: "Edvaldo",  colorId: "7"  }, // Azul Petróleo (turquesa)
+  { name: "Anderson", colorId: "7"  }, // Turquesa
+  { name: "Edilson",  colorId: "4"  }, // Cobre
+  { name: "Gabriel",  colorId: "10" }, // Verde Lima
+  { name: "William",  colorId: "3"  }, // Roxo Escuro
 ];
+
 // Se preferir manter um map direto: name -> colorId
 const TECNICO_CORES = Object.fromEntries(TECNICOS.map(t => [t.name, t.colorId]));
 

@@ -92,6 +92,22 @@
     <a href="/index.html" class="fab tooltip" data-tooltip="Abrir Agenda" id="fabLink">📅</a>
   </div>
 
+  <!-- MODAL: Reajuste de Vagas -->
+  <dialog class="reajuste-modal" id="reajusteDialog">
+    <div class="reajuste-wrap">
+      <div class="reajuste-title">⚙️ Reajustar Vagas</div>
+      <div class="reajuste-note" id="reajusteNota">—</div>
+      <div class="reajuste-field">
+        <label for="reajusteCidadeSelect" class="reajuste-label">Cidade / Período</label>
+        <select id="reajusteCidadeSelect" class="reajuste-select"></select>
+      </div>
+      <div class="reajuste-actions">
+        <button class="btn btn-ghost" id="reajusteCancelar">Cancelar</button>
+        <button class="btn btn-primary" id="reajusteAplicar">Aplicar</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Banner de erros -->
   <div id="appErrors"><strong>Ocorreu um erro</strong><pre id="appErrorsText"></pre></div>
 

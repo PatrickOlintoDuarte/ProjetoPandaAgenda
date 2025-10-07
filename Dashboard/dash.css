@@ -379,6 +379,24 @@ body {
   .header, .date-picker-section, .stat-card, .section-header, .city-card { box-shadow: 0 6px 16px rgba(0,0,0,.10); }
 }
 
+/* MODAL DE REAJUSTE */
+dialog.reajuste-modal {
+  border: none; border-radius: 16px; padding: 0; width: min(520px, 92vw);
+  background: rgba(255,255,255,.95); backdrop-filter: blur(15px); box-shadow: 0 25px 50px rgba(0,0,0,.15);
+}
+.reajuste-modal::backdrop { background: rgba(0,0,0,.35); }
+.reajuste-wrap { padding: 20px; }
+.reajuste-title { font-weight: 700; font-size: 1.5rem; margin-bottom: 12px; }
+.reajuste-note  { font-size: .9rem; color: #666; margin-bottom: 16px; }
+.reajuste-field { display: grid; gap: 8px; margin-bottom: 18px; }
+.reajuste-label { font-weight: 600; font-size: 1rem; }
+.reajuste-select {
+  width: 100%; padding: 12px 14px; border-radius: 12px; border: 2px solid #e1e5e9; background: #fff; font-size: 1rem;
+}
+.reajuste-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.btn-ghost { background: rgba(0,0,0,.05); }
+
+
 /* <= 480px (super compacto) */
 @media (max-width: var(--bp-sm)) {
   :root{
