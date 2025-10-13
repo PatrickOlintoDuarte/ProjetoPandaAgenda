@@ -1,7 +1,23 @@
 /* ========= CONFIG GOOGLE ========= */
 const CLIENT_ID   = "371129341051-8ukpj3l1chk4jccdhanm5mvu3h2ajnm0.apps.googleusercontent.com";
 const CALENDAR_ID = "f115236e50fdb661333dfef8b424cfac22446bb8624c5f6ce3ddb1d666f3e102@group.calendar.google.com";
+
+/* Somente Calendar agora (Sheets removido) */
 const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
+
+/* ========= FIREBASE ========= */
+let fbApp = null;
+let fbDb  = null;
+function initFirebase(){
+  if (fbApp) return;
+  const cfg = window.FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey) {
+    console.warn("⚠️ Firebase sem config. Preencha window.FIREBASE_CONFIG no index.html");
+    return;
+  }
+  fbApp = firebase.initializeApp(cfg);
+  fbDb  = firebase.database();
+}
 
 /* ========= ESTADO ========= */
 let isGoogleConnected = false;
@@ -9,11 +25,8 @@ let accessToken = null;
 let selectedDate = new Date();
 const vagasPorData = {};
 
-/* ========= CAPACIDADES (BASE) =========
-   - Base representa "Manhã" para cidades com período.
-   - "Tarde" é controlada via CAPACIDADE_OVERRIDES.
-*/
-const CAPACIDADE_BASE = {
+/* ========= CAPACIDADES DEFAULT (fallback) ========= */
+const DEFAULT_CAPACIDADE_BASE = {
   "Santo André":     { "Manutenção": 18, "Instalação": 10, "Implementação": 6, "Mudança de Endereço": 8, "Retenção": 7 },
   "Diadema":         { "Manutenção": 12, "Instalação": 6,  "Implementação": 4, "Mudança de Endereço": 6, "Retenção": 5 },
   "São Bernardo":    { "Manutenção": 20, "Instalação": 12, "Implementação": 6, "Mudança de Endereço": 8, "Retenção": 7 },
@@ -22,12 +35,11 @@ const CAPACIDADE_BASE = {
   "Mauá":            { "Manutenção": 14, "Instalação": 7,  "Implementação": 4, "Mudança de Endereço": 5, "Retenção": 5 },
 };
 
-/* ========= OVERRIDES EXPANDIDOS =========
-   Guarda capacidades específicas para chaves expandidas, ex.:
-   - "Santo André - Tarde": { ... }
-   - Se houver override de "Cidade - Manhã", ele é temporário; ao aplicar, espelha na base e o override é limpo.
-*/
-const CAPACIDADE_OVERRIDES = {}; // { [expandedCityName]: {Servico: numero, ...} }
+/* CAPACIDADES vigentes em memória (alteradas pela data) */
+let CAPACIDADE_BASE = deepClone(DEFAULT_CAPACIDADE_BASE);
+
+/* ========= OVERRIDES EXPANDIDOS ========= */
+const CAPACIDADE_OVERRIDES = {}; // { "Cidade - Tarde": {Servico: numero, ...} }
 
 /* ========= CIDADES ATIVAS / OCULTAS ========= */
 const CIDADES_OCULTAS = new Set(["São Bernardo", "São Caetano", "Ribeirão Pires", "Mauá"]);
@@ -37,65 +49,11 @@ const isCityHiddenBase = (cidade) => CIDADES_OCULTAS.has(cidade);
 const CIDADES_COM_PERIODOS = new Set(["Santo André", "Diadema"]);
 const SP_TZ = "America/Sao_Paulo";
 
-/* Constrói o mapa de capacidades EXPANDIDO aplicando overrides onde houver */
-function buildCapacidadeExpandida() {
-  const expanded = {};
-  for (const cidade of Object.keys(CAPACIDADE_BASE)) {
-    if (isCityHiddenBase(cidade)) continue;
-
-    const baseCaps = CAPACIDADE_BASE[cidade];
-
-    if (CIDADES_COM_PERIODOS.has(cidade)) {
-      const kManha = `${cidade} - Manhã`;
-      const kTarde = `${cidade} - Tarde`;
-      expanded[kManha] = { ...(CAPACIDADE_OVERRIDES[kManha] || baseCaps) };
-      expanded[kTarde] = { ...(CAPACIDADE_OVERRIDES[kTarde] || baseCaps) };
-    } else {
-      // cidades sem período também podem ter override próprio
-      expanded[cidade] = { ...(CAPACIDADE_OVERRIDES[cidade] || baseCaps) };
-    }
-  }
-  return expanded;
-}
-
-let CAPACIDADE = buildCapacidadeExpandida();
-
-/* ========= SERVIÇOS / ÍCONES ========= */
-const servicoIcons = {
-  "Manutenção": "🔧",
-  "Instalação": "📡",
-  "Implementação": "⚙️",
-  "Mudança de Endereço": "📦",
-  "Retenção": "🤝"
-};
-
-/* ========= PALAVRAS-CHAVE (regex) ========= */
-const SERVICE_KEYWORDS = [
-  { service: "Manutenção", patterns: [/manuten[çc][aã]o/i, /preventiva/i, /\bt[eê]cnico\b/i] },
-  { service: "Instalação", patterns: [/instala[çc][aã]o/i, /\binstalar\b/i, /\binstala[rd]\b/i] },
-  { service: "Implementação", patterns: [/implementa[çc][aã]o/i, /\bimplanta[çc][aã]o\b/i, /\bimplementar\b/i] },
-  { service: "Mudança de Endereço", patterns: [/mudan[çc]a\s+de\s+endere[çc]o/i, /mudan[çc]a.*endere[çc]o/i, /\btransfer[êe]ncia\s+de\s+end/i] },
-  { service: "Retenção", patterns: [/reten[çc][aã]o/i, /cancelamento/i, /CANC(?:\s|.)*PONTO\s+ADC/i] },
-];
-
-/* ========= ERROS VISUAIS ========= */
-function showErrorBanner(msg){
-  console.error("❌ Erro:", msg);
-  const box = document.getElementById("appErrors");
-  const pre = document.getElementById("appErrorsText");
-  if (box && pre) {
-    pre.textContent = String(msg?.stack || msg);
-    box.style.display = "block";
-  }
-}
-window.onerror = (m, s, l, c, e)=>{ showErrorBanner(e?.stack || m); };
-window.addEventListener('unhandledrejection', (ev)=>{ showErrorBanner(ev.reason?.stack || ev.reason); });
-
-/* ========= HELPERS DE DOM ========= */
+/* ========= HELPERS ========= */
+function deepClone(o){ return JSON.parse(JSON.stringify(o)); }
 const $ = (id) => document.getElementById(id);
 const on = (el, ev, cb) => { if (el) el.addEventListener(ev, cb); };
 
-/* ========= UTILS DATA (SP) ========= */
 function toISODateSP(date){
   const p = new Intl.DateTimeFormat('en-CA',{timeZone:SP_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
   return `${p.find(x=>x.type==='year').value}-${p.find(x=>x.type==='month').value}-${p.find(x=>x.type==='day').value}`;
@@ -119,9 +77,8 @@ function updateGoogleCalendarStatus(){
   }
 }
 
-/* ========= AUTH (GIS - redirect) ========= */
+/* ========= AUTH (GIS - popup p/ dev/local) ========= */
 let tokenClient = null;
-
 async function waitForGIS(timeoutMs=8000){
   return new Promise((resolve,reject)=>{
     const t0=Date.now();
@@ -132,27 +89,26 @@ async function waitForGIS(timeoutMs=8000){
     })();
   });
 }
-
 async function initGIS() {
   await waitForGIS();
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
-    ux_mode: "redirect",
-    redirect_uri: "https://patrickolintoduarte.github.io/ProjetoPandaAgenda",
-    callback: (resp) => {
-      if (resp && resp.access_token) {
-        accessToken = resp.access_token;
-        isGoogleConnected = true;
-        updateGoogleCalendarStatus();
-        buscarVagasData();
-      } else {
-        console.warn("⚠️ GIS não retornou access_token no callback");
-      }
+    ux_mode: "popup",
+    callback: async (resp) => {
+      try{
+        if (resp && resp.access_token) {
+          accessToken = resp.access_token;
+          isGoogleConnected = true;
+          updateGoogleCalendarStatus();
+          await buscarVagasData();
+        } else {
+          throw new Error("GIS: não retornou access_token.");
+        }
+      }catch(e){ showErrorBanner(e); }
     }
   });
 }
-
 async function handleAuthClick(){
   try{
     if (!tokenClient) await initGIS();
@@ -160,7 +116,7 @@ async function handleAuthClick(){
   }catch(e){ showErrorBanner(e); }
 }
 
-/* ========= CALENDAR via fetch ========= */
+/* ========= GOOGLE CALENDAR ========= */
 async function listEventsByDate(dateStringSP){
   if(!accessToken) {
     console.warn("⚠️ Sem token, não vou buscar eventos");
@@ -190,7 +146,7 @@ async function listEventsByDate(dateStringSP){
         throw new Error("Não autorizado (401). O token pode estar expirado. Clique em 'Conectar Google' novamente.");
       }
       if (r.status === 403) {
-        throw new Error("Acesso negado (403). Habilite a Calendar API e autorize o redirect_uri no Google Cloud.");
+        throw new Error("Acesso negado (403). Habilite a Calendar API e autorize a origem no Google Cloud.");
       }
       throw new Error(`Calendar API falhou (${r.status}): ${txt}`);
     }
@@ -204,7 +160,96 @@ async function listEventsByDate(dateStringSP){
   }
 }
 
-/* ========= PARSING ========= */
+/* ========= FIREBASE (modular via window.__fb) =========
+   Estrutura:
+   /capacidades/{YYYY-MM-DD}/BASE/{Cidade}/{Servico} = numero
+   /capacidades/{YYYY-MM-DD}/OVERRIDES/{Cidade - Tarde}/{Servico} = numero
+*/
+function fbPath(dateString){ return `capacidades/${dateString}`; }
+
+async function fetchCapacidadesFromFirebase(dateString){
+  if (!window.__fb || !window.__fb.db) {
+    console.warn("Firebase não inicializado (ver <script type='module'> no index.html). Usando default local.");
+    // reset para defaults
+    CAPACIDADE_BASE = deepClone(DEFAULT_CAPACIDADE_BASE);
+    Object.keys(CAPACIDADE_OVERRIDES).forEach(k=>delete CAPACIDADE_OVERRIDES[k]);
+    CAPACIDADE = buildCapacidadeExpandida();
+    return;
+  }
+  const { db, ref, get } = window.__fb;
+
+  // reset base/overrides
+  CAPACIDADE_BASE = deepClone(DEFAULT_CAPACIDADE_BASE);
+  Object.keys(CAPACIDADE_OVERRIDES).forEach(k=>delete CAPACIDADE_OVERRIDES[k]);
+
+  const snap = await get(ref(db, fbPath(dateString)));
+  const data = snap.exists() ? snap.val() : null;
+
+  if (data && data.BASE) {
+    for (const cidade of Object.keys(data.BASE)) {
+      CAPACIDADE_BASE[cidade] ??= {};
+      for (const servico of Object.keys(data.BASE[cidade])) {
+        CAPACIDADE_BASE[cidade][servico] = Number(data.BASE[cidade][servico] || 0);
+      }
+    }
+  }
+  if (data && data.OVERRIDES) {
+    for (const key of Object.keys(data.OVERRIDES)) {
+      CAPACIDADE_OVERRIDES[key] ??= {};
+      for (const servico of Object.keys(data.OVERRIDES[key])) {
+        CAPACIDADE_OVERRIDES[key][servico] = Number(data.OVERRIDES[key][servico] || 0);
+      }
+    }
+  }
+
+  CAPACIDADE = buildCapacidadeExpandida();
+}
+
+async function saveCapacidadesToFirebase(dateString){
+  if (!window.__fb || !window.__fb.db) throw new Error("Firebase não inicializado (confira o bloco <script type='module'> no index.html).");
+  const { db, ref, set } = window.__fb;
+
+  const BASE = {};
+  for (const cidade of Object.keys(CAPACIDADE_BASE)) {
+    BASE[cidade] = {};
+    for (const servico of Object.keys(CAPACIDADE_BASE[cidade])) {
+      BASE[cidade][servico] = Number(CAPACIDADE_BASE[cidade][servico] || 0);
+    }
+  }
+
+  const OVERRIDES = {};
+  for (const key of Object.keys(CAPACIDADE_OVERRIDES)) {
+    OVERRIDES[key] = {};
+    for (const servico of Object.keys(CAPACIDADE_OVERRIDES[key])) {
+      OVERRIDES[key][servico] = Number(CAPACIDADE_OVERRIDES[key][servico] || 0);
+    }
+  }
+
+  await set(ref(db, fbPath(dateString)), { BASE, OVERRIDES, updatedAt: Date.now() });
+}
+
+
+/* ========= PARSING DE EVENTOS ========= */
+const servicoIcons = { "Manutenção":"🔧", "Instalação":"📡", "Implementação":"⚙️", "Mudança de Endereço":"📦", "Retenção":"🤝" };
+const SERVICE_KEYWORDS = [
+  { service: "Manutenção", patterns: [/manuten[çc][aã]o/i, /preventiva/i, /\bt[eê]cnico\b/i] },
+  { service: "Instalação", patterns: [/instala[çc][aã]o/i, /\binstalar\b/i, /\binstala[rd]\b/i] },
+  { service: "Implementação", patterns: [/implementa[çc][aã]o/i, /\bimplanta[çc][aã]o\b/i, /\bimplementar\b/i] },
+  { service: "Mudança de Endereço", patterns: [/mudan[çc]a\s+de\s+endere[çc]o/i, /mudan[çc]a.*endere[çc]o/i, /\btransfer[êe]ncia\s+de\s+end/i] },
+  { service: "Retenção", patterns: [/reten[çc][aã]o/i, /cancelamento/i, /CANC(?:\s|.)*PONTO\s+ADC/i] },
+];
+function showErrorBanner(msg){
+  console.error("❌ Erro:", msg);
+  const box = document.getElementById("appErrors");
+  const pre = document.getElementById("appErrorsText");
+  if (box && pre) {
+    pre.textContent = String(msg?.stack || msg);
+    box.style.display = "block";
+  }
+}
+window.onerror = (m, s, l, c, e)=>{ showErrorBanner(e?.stack || e || m); };
+window.addEventListener('unhandledrejection', (ev)=>{ showErrorBanner(ev.reason?.stack || ev.reason); });
+
 function extractCityFromDescription(desc=""){
   try{
     let m = desc.match(/^\s*Cidade:\s*(.+)\s*$/mi);
@@ -251,11 +296,41 @@ function resolveCidadePeriodo(cidadeBase, ev){
   return cidadeBase;
 }
 
+/* ========= RECÊNCIA (para excedentes: manter últimos) ========= */
+function getEventCreationTs(ev){
+  const created = ev?.created ? Date.parse(ev.created) : NaN;
+  const startIso = ev?.start?.dateTime || (ev?.start?.date ? `${ev.start.date}T00:00:00` : null);
+  const startTs = startIso ? Date.parse(startIso) : NaN;
+  const updated = ev?.updated ? Date.parse(ev.updated) : NaN;
+  if (!Number.isNaN(created)) return created;
+  if (!Number.isNaN(updated)) return updated;
+  if (!Number.isNaN(startTs)) return startTs;
+  return 0;
+}
+
+/* ========= EXPANDIDO ========= */
+function buildCapacidadeExpandida() {
+  const expanded = {};
+  for (const cidade of Object.keys(CAPACIDADE_BASE)) {
+    if (isCityHiddenBase(cidade)) continue;
+
+    const baseCaps = CAPACIDADE_BASE[cidade];
+    if (CIDADES_COM_PERIODOS.has(cidade)) {
+      const kManha = `${cidade} - Manhã`;
+      const kTarde = `${cidade} - Tarde`;
+      expanded[kManha] = { ...(CAPACIDADE_OVERRIDES[kManha] || baseCaps) };
+      expanded[kTarde] = { ...(CAPACIDADE_OVERRIDES[kTarde] || baseCaps) };
+    } else {
+      expanded[cidade] = { ...(CAPACIDADE_OVERRIDES[cidade] || baseCaps) };
+    }
+  }
+  return expanded;
+}
+let CAPACIDADE = buildCapacidadeExpandida();
+
 /* ========= DIA / CAPACIDADES ========= */
 function buildSkeletonWithCapacity(dateString){
-  // sempre reconstrói a visão expandida a partir da base + overrides
   CAPACIDADE = buildCapacidadeExpandida();
-
   vagasPorData[dateString] = {};
   Object.keys(CAPACIDADE).forEach(cidade=>{
     vagasPorData[dateString][cidade] = {};
@@ -264,16 +339,44 @@ function buildSkeletonWithCapacity(dateString){
     });
   });
 }
+
+/* ========= PREENCHE EVENTOS (mantém os últimos, descarte antigos) ========= */
 async function preencherComEventos(dateString){
   buildSkeletonWithCapacity(dateString);
   const events = await listEventsByDate(dateString);
-  for(const ev of events){
+
+  const grupos = {}; // key -> [{title, ts}]
+  for (const ev of events) {
     const { cidade: cidadeBase, servico } = parseEventToSlot(ev);
-    if(!cidadeBase || !servico) continue;
+    if (!cidadeBase || !servico) continue;
+
     const cidade = resolveCidadePeriodo(cidadeBase, ev);
     const slot = vagasPorData[dateString]?.[cidade]?.[servico];
-    if(slot){ slot.ocupadas = Math.min(slot.total, slot.ocupadas + 1); }
+    if (!slot) continue;
+
+    const k = `${cidade}||${servico}`;
+    if (!grupos[k]) grupos[k] = [];
+    grupos[k].push({
+      title: (ev?.summary || "(sem título)").trim(),
+      ts: getEventCreationTs(ev)
+    });
   }
+
+  const excedentes = [];
+  for (const k of Object.keys(grupos)) {
+    const [cidade, servico] = k.split("||");
+    const slot = vagasPorData[dateString][cidade][servico];
+    const total = slot.total;
+
+    const arr = grupos[k].sort((a,b)=> a.ts - b.ts);
+    const mantidos = arr.slice(-total);
+    const descartados = arr.slice(0, Math.max(0, arr.length - total));
+
+    slot.ocupadas = Math.min(total, mantidos.length);
+    for (const d of descartados) excedentes.push({ cidade, servico, title: d.title });
+  }
+
+  return excedentes;
 }
 
 /* ========= ESTATÍSTICAS / UI ========= */
@@ -315,6 +418,8 @@ function atualizarEstatisticasUI(dateString){
     else { st.className="stat-change negative"; st.innerHTML="<span>🔥</span><span>Alta demanda</span>"; }
   }
 }
+
+/* ========= CIDADES / UI ========= */
 function criarCardsCidadesUI(dateString){
   const cont = $("citiesGrid");
   if(!cont) return;
@@ -344,8 +449,9 @@ function criarCardsCidadesUI(dateString){
             const s = data[serv];
             const disp = Math.max(0, s.total - s.ocupadas);
             const perc = s.total ? Math.round((s.ocupadas/s.total)*100) : 0;
+            const lotado = s.ocupadas >= s.total;
             return `
-              <div class="service-item">
+              <div class="service-item" data-lotado="${lotado}">
                 <div class="service-info">
                   <div class="service-name">${servicoIcons[serv]||"🛠️"} ${serv}</div>
                   <div class="service-details">${s.ocupadas} agendadas de ${s.total} vagas</div>
@@ -364,116 +470,47 @@ function criarCardsCidadesUI(dateString){
     cont.appendChild(card);
   });
 }
+
 function atualizarSelecaoDataUI(d, msg=""){
   const isToday = toISODateSP(d)===toISODateSP(new Date());
   const dt = $("selectedDateText"); if (dt) dt.textContent = `📍 Data selecionada: ${isToday?"Hoje":formatPtSP(d)}`;
   const ds = $("dateStatus"); if (ds) ds.textContent = msg || `Exibindo disponibilidade para ${isToday?"hoje":"o dia selecionado"}.`;
 }
 
-/* ========= REAJUSTE DE VAGAS (MODAL + SELECT) ========= */
-function openReajusteModal(){
-  const dlg = $("reajusteDialog");
-  const select = $("reajusteCidadeSelect");
-  const nota = $("reajusteNota");
-  if (!dlg || !select || !nota) {
-    console.warn("⚠️ Modal de reajuste não encontrado no DOM. Verifique o HTML.");
-    return;
+/* ========= ALERTA DE EXCEDENTES ========= */
+function notifyExcess(excedentes){
+  if (!Array.isArray(excedentes) || excedentes.length === 0) return;
+
+  const group = {};
+  for (const e of excedentes) {
+    const k = `${e.cidade}||${e.servico}`;
+    if (!group[k]) group[k] = [];
+    group[k].push(e.title);
   }
 
-  const capExp = buildCapacidadeExpandida();
-  select.innerHTML = "";
-
-  const optGlobal = document.createElement("option");
-  optGlobal.value = "__GLOBAL__";
-  optGlobal.textContent = "🌐 Global — todas as cidades ativas";
-  select.appendChild(optGlobal);
-
-  Object.keys(capExp).sort().forEach(cidade=>{
-    const opt = document.createElement("option");
-    opt.value = cidade;
-    opt.textContent = cidade;
-    select.appendChild(opt);
-  });
-
-  nota.textContent = "Dica: “Global” ajusta todas as cidades e períodos. Cidades ocultas seguem fora.";
-  if (typeof dlg.showModal === "function") dlg.showModal();
-  else dlg.setAttribute("open",""); // fallback simples
-}
-
-function fecharReajusteModal(){
-  const dlg = $("reajusteDialog");
-  if (!dlg) return;
-  if (dlg.open && typeof dlg.close === "function") dlg.close();
-  else dlg.removeAttribute("open");
-}
-
-function aplicarReajusteSelecionado(){
-  const select = $("reajusteCidadeSelect");
-  if (!select) {
-    console.warn("⚠️ Select do modal não encontrado.");
-    return;
+  const linhas = [];
+  for (const key of Object.keys(group)) {
+    const [cidade, servico] = key.split("||");
+    const titulos = group[key].slice(0, 5).map(t => `- ${t}`).join("\n");
+    const extra = group[key].length > 5 ? `\n  (+${group[key].length - 5} mais)` : "";
+    linhas.push(`${cidade} • ${servico}\n${titulos}${extra}`);
   }
-  try{
-    const escolha = select.value;
-    const servicos = ["Manutenção", "Instalação", "Implementação", "Mudança de Endereço", "Retenção"];
 
-    // Partimos da visão atual (base + overrides)
-    const capExp = buildCapacidadeExpandida();
+  alert(`⚠️ Capacidade excedida em alguns serviços:\n\n${linhas.join("\n\n")}`);
 
-    if (escolha === "__GLOBAL__") {
-      // Ajusta cidade a cidade
-      for (const cidade of Object.keys(capExp)) {
-        for (const serv of servicos) {
-          const atual = capExp[cidade][serv];
-          const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${cidade} (atual: ${atual})`), 10);
-          if (!isNaN(novo) && novo >= 0) capExp[cidade][serv] = novo;
-        }
-      }
-      projectExpandedToStores(capExp); // <-- grava corretamente (base e overrides)
-      alert("✅ Vagas reajustadas globalmente.");
-    } else if (capExp[escolha]) {
-      for (const serv of servicos) {
-        const atual = capExp[escolha][serv];
-        const novo = parseInt(prompt(`Nova capacidade para ${serv} em ${escolha} (atual: ${atual})`), 10);
-        if (!isNaN(novo) && novo >= 0) capExp[escolha][serv] = novo;
-      }
-      projectExpandedToStores(capExp, escolha); // <-- grava apenas a escolhida
-      alert(`✅ Vagas reajustadas para ${escolha}.`);
-    } else {
-      alert("❌ Cidade inválida.");
-      return;
-    }
+  const html = Object.keys(group).map(key => {
+    const [cidade, servico] = key.split("||");
+    const itens = group[key].map(t => `• ${t}`).join("<br>");
+    return `<div style="margin-bottom:10px">
+      <strong>${cidade}</strong> — <em>${servico}</em><br>${itens}
+    </div>`;
+  }).join("");
 
-    fecharReajusteModal();
-    buscarVagasData();
-  } catch(e){ showErrorBanner(e); }
-}
-
-/* ========= PROJEÇÃO: EXPANDIDO → BASE/OVERRIDES =========
-   - "Cidade - Manhã"  → atualiza CAPACIDADE_BASE[cidade] e remove override de Manhã.
-   - "Cidade - Tarde"  → salva em CAPACIDADE_OVERRIDES["Cidade - Tarde"].
-   - "Cidade" (sem período) → atualiza CAPACIDADE_BASE["Cidade"] e remove override plano.
-*/
-function projectExpandedToStores(capExpanded, onlyKey){
-  const keys = onlyKey ? [onlyKey] : Object.keys(capExpanded);
-
-  for (const key of keys) {
-    const m = key.match(/^(.+)\s-\s(Manhã|Tarde)$/);
-    if (m) {
-      const baseName = m[1];
-      const periodo = m[2];
-      if (periodo === "Manhã") {
-        CAPACIDADE_BASE[baseName] = { ...capExpanded[key] };
-        delete CAPACIDADE_OVERRIDES[`${baseName} - Manhã`]; // manhã espelha base
-      } else {
-        // Tarde fica em override próprio
-        CAPACIDADE_OVERRIDES[`${baseName} - Tarde`] = { ...capExpanded[key] };
-      }
-    } else {
-      // Sem período: vira base direta
-      CAPACIDADE_BASE[key] = { ...capExpanded[key] };
-      delete CAPACIDADE_OVERRIDES[key];
-    }
+  const box = document.getElementById("appErrors");
+  const pre = document.getElementById("appErrorsText");
+  if (box && pre) {
+    pre.innerHTML = html;
+    box.style.display = "block";
   }
 }
 
@@ -484,9 +521,13 @@ async function buscarVagasData(){
     selectedDate = parseLocalDate(v);
     const ds = toISODateSP(selectedDate);
 
+    // Carrega capacidade específica da DATA (Firebase)
+    await fetchCapacidadesFromFirebase(ds);
+
+    let excedentes = [];
     if(isGoogleConnected && accessToken){
       atualizarSelecaoDataUI(selectedDate,"Carregando eventos e calculando disponibilidade...");
-      await preencherComEventos(ds);
+      excedentes = await preencherComEventos(ds);
       atualizarSelecaoDataUI(selectedDate,"Eventos carregados com sucesso.");
     }else{
       buildSkeletonWithCapacity(ds);
@@ -495,6 +536,8 @@ async function buscarVagasData(){
 
     atualizarEstatisticasUI(ds);
     criarCardsCidadesUI(ds);
+    if (excedentes.length > 0) notifyExcess(excedentes);
+
   }catch(e){
     atualizarSelecaoDataUI(selectedDate, String(e.message || e));
     showErrorBanner(e);
@@ -509,14 +552,7 @@ function definirHoje(){ selectedDate=new Date(); setDatePickerTo(selectedDate); 
 /* ========= INIT ========= */
 document.addEventListener("DOMContentLoaded", async ()=>{
   try{
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const t = params.get("access_token");
-    if (t) {
-      accessToken = t;
-      isGoogleConnected = true;
-      updateGoogleCalendarStatus();
-      history.replaceState(null, "", window.location.pathname + window.location.search);
-    }
+    initFirebase();
 
     setDatePickerTo(selectedDate);
     updateGoogleCalendarStatus();
@@ -539,3 +575,105 @@ document.addEventListener("DOMContentLoaded", async ()=>{
     on($("reajusteAplicar"), "click", aplicarReajusteSelecionado);
   }catch(e){ showErrorBanner(e); }
 });
+
+/* ========= REAJUSTE DE VAGAS (MODAL + SELECT) ========= */
+function openReajusteModal(){
+  const dlg = $("reajusteDialog");
+  const select = $("reajusteCidadeSelect");
+  const nota = $("reajusteNota");
+  if (!dlg || !select || !nota) {
+    console.warn("⚠️ Modal de reajuste não encontrado no DOM. Verifique o HTML.");
+    return;
+  }
+
+  const capExp = buildCapacidadeExpandida();
+  select.innerHTML = "";
+
+  const optGlobal = document.createElement("option");
+  optGlobal.value = "__GLOBAL__";
+  optGlobal.textContent = "🌐 Global — todas as cidades ativas (desta data)";
+  select.appendChild(optGlobal);
+
+  Object.keys(capExp).sort().forEach(cidade=>{
+    const opt = document.createElement("option");
+    opt.value = cidade;
+    opt.textContent = cidade;
+    select.appendChild(opt);
+  });
+
+  nota.textContent = "As alterações serão salvas SOMENTE para a data atualmente selecionada.";
+  if (typeof dlg.showModal === "function") dlg.showModal();
+  else dlg.setAttribute("open","");
+}
+
+function fecharReajusteModal(){
+  const dlg = $("reajusteDialog");
+  if (!dlg) return;
+  if (dlg.open && typeof dlg.close === "function") dlg.close();
+  else dlg.removeAttribute("open");
+}
+
+async function aplicarReajusteSelecionado(){
+  const select = $("reajusteCidadeSelect");
+  if (!select) {
+    console.warn("⚠️ Select do modal não encontrado.");
+    return;
+  }
+  try{
+    const escolha = select.value;
+    const servicos = ["Manutenção", "Instalação", "Implementação", "Mudança de Endereço", "Retenção"];
+
+    const capExp = buildCapacidadeExpandida();
+
+    if (escolha === "__GLOBAL__") {
+      for (const cidade of Object.keys(capExp)) {
+        for (const serv of servicos) {
+          const atual = capExp[cidade][serv];
+          const novo = parseInt(prompt(`(${toISODateSP(selectedDate)}) Nova capacidade para ${serv} em ${cidade} (atual: ${atual})`), 10);
+          if (!isNaN(novo) && novo >= 0) capExp[cidade][serv] = novo;
+        }
+      }
+      projectExpandedToStores(capExp);
+      alert("✅ Vagas reajustadas globalmente (para a data atual).");
+    } else if (capExp[escolha]) {
+      for (const serv of servicos) {
+        const atual = capExp[escolha][serv];
+        const novo = parseInt(prompt(`(${toISODateSP(selectedDate)}) Nova capacidade para ${serv} em ${escolha} (atual: ${atual})`), 10);
+        if (!isNaN(novo) && novo >= 0) capExp[escolha][serv] = novo;
+      }
+      projectExpandedToStores(capExp, escolha);
+      alert(`✅ Vagas reajustadas para ${escolha} (data atual).`);
+    } else {
+      alert("❌ Cidade inválida.");
+      return;
+    }
+
+    // >>> SALVA NO FIREBASE para a data selecionada
+    await saveCapacidadesToFirebase(toISODateSP(selectedDate));
+
+    fecharReajusteModal();
+    buscarVagasData();
+  } catch(e){ showErrorBanner(e); }
+}
+
+/* ========= PROJEÇÃO: EXPANDIDO → BASE/OVERRIDES ========= */
+function projectExpandedToStores(capExpanded, onlyKey){
+  const keys = onlyKey ? [onlyKey] : Object.keys(capExpanded);
+
+  for (const key of keys) {
+    const m = key.match(/^(.+)\s-\s(Manhã|Tarde)$/);
+    if (m) {
+      const baseName = m[1];
+      const periodo = m[2];
+      if (periodo === "Manhã") {
+        CAPACIDADE_BASE[baseName] = { ...capExpanded[key] };
+        delete CAPACIDADE_OVERRIDES[`${baseName} - Manhã`];
+      } else {
+        CAPACIDADE_OVERRIDES[`${baseName} - Tarde`] = { ...capExpanded[key] };
+      }
+    } else {
+      CAPACIDADE_BASE[key] = { ...capExpanded[key] };
+      delete CAPACIDADE_OVERRIDES[key];
+    }
+  }
+}

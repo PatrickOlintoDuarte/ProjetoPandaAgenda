@@ -293,10 +293,19 @@ body {
 
 /* Cores por serviço */
 .service-item:nth-child(1) { --service-color:#e74c3c; --service-color-dark:#c0392b; } /* Manutenção */
-.service-item:nth-child(2) { --service-color:#3498db; --service-color-dark:#2980b9; } /* Instalação ADIZ */
-.service-item:nth-child(3) { --service-color:#9b59b6; --service-color-dark:#8e44ad; } /* Implementação AREZZO */
+.service-item:nth-child(2) { --service-color:#3498db; --service-color-dark:#2980b9; } /* Instalação */
+.service-item:nth-child(3) { --service-color:#9b59b6; --service-color-dark:#8e44ad; } /* Implementação */
 .service-item:nth-child(4) { --service-color:#16a085; --service-color-dark:#0e6f5d; } /* Mudança de Endereço */
 .service-item:nth-child(5) { --service-color:#e67e22; --service-color-dark:#d35400; } /* Retenção */
+
+/* ===== NOVO: Destaque visual quando lotado ===== */
+.service-item[data-lotado="true"] {
+  border-left-color: #e74c3c !important;
+  background: linear-gradient(135deg, #ffeaea, #ffe1e1);
+}
+.service-item[data-lotado="true"] .available-count {
+  color: #e74c3c !important;
+}
 
 /* ========================================================================== */
 /* 7) Status Google Calendar                                                  */
@@ -396,14 +405,13 @@ dialog.reajuste-modal {
 .reajuste-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 .btn-ghost { background: rgba(0,0,0,.05); }
 
-
 /* <= 480px (super compacto) */
 @media (max-width: var(--bp-sm)) {
   :root{
     --fs-200:.85rem; --fs-300:.95rem; --fs-400:1rem;
     --fs-500:1.15rem; --fs-600:1.25rem; --fs-800:1.7rem; --fs-900:2rem;
   }
-  .header-actions { grid-template-columns: 1fr; }
+  .header-actions { grid-template-columns:1fr; }
   .btn { padding: 12px 16px; }
   .stat-value { font-size: 2rem; }
   .stat-icon { font-size: 1.6rem; }
